@@ -14,6 +14,8 @@ function fakeHost() {
   const commands = [];
   const logs = [];
   const settings = { describe: () => [] };
+  const routes = [];
+  const webServer = { register: (route) => { routes.push(route); return () => { routes.splice(routes.indexOf(route), 1); }; } };
   const ctx = {
     on(type, fn) {
       handlers.set(type, fn);
@@ -35,6 +37,13 @@ function fakeHost() {
           },
         });
       }
+      if (services.includes('webServer') && webServer) {
+        callback({
+          get(service) {
+            return service === 'webServer' ? webServer : undefined;
+          },
+        });
+      }
     },
     tools: { register: (tool) => tools.push(tool) },
     logger: () => ({
@@ -49,6 +58,7 @@ function fakeHost() {
     commands,
     logs,
     settings,
+    routes,
     emit(session, event) {
       const handler = handlers.get('session/event');
       assert.ok(handler, 'session/event 未订阅');
@@ -335,5 +345,33 @@ test('/aftermath roots --add 预览加目录后的样子，不假装改配置', 
     assert.match(result.text, /准备加入/);
     assert.match(result.text, /插件不替你写宿主配置/);
     assert.match(result.text, /cordis\.patch\.yml/);
+  });
+});
+
+test('面板路由：注册 /aftermath/recent 并返回可解析的 JSON', async () => {
+  await withEnv(async ({ root }) => {
+    const host = fakeHost();
+    apply(host.ctx, { roots: [root], depth: 1, maskHome: false });
+    assert.equal(host.routes.length, 1, '应该注册一条只读路由');
+    const route = host.routes[0];
+    assert.equal(route.kind, 'exact');
+    assert.equal(route.path, '/aftermath/recent');
+    assert.equal(typeof route.resource, 'function');
+
+    const session = { id: 'sess-panel' };
+    host.emit(session, { type: 'turn/start', time: Date.now(), data: { turn: 4 } });
+    fs.writeFileSync(path.join(root, 'panel-made.txt'), 'x');
+    host.emit(session, { type: 'turn/end', time: Date.now(), data: { turn: 4 } });
+
+    const response = await route.resource(new Request('http://127.0.0.1/aftermath/recent'));
+    assert.equal(response.status, 200);
+    assert.match(response.headers.get('content-type') || '', /application\/json/);
+    assert.equal(response.headers.get('cache-control'), 'no-store');
+    const payload = await response.json();
+    assert.equal(payload.plugin, 'dsh-aftermath');
+    assert.ok(Array.isArray(payload.turns));
+    assert.equal(payload.turns[0].turn, 4);
+    assert.ok(payload.turns[0].changes.some((change) => change.rel === 'panel-made.txt'));
+    assert.equal(payload.totals.todayTurns >= 1, true);
   });
 });

@@ -10,11 +10,26 @@ DSH 插件，零依赖，不联网，不读文件内容。
 
 ## 用法
 
-装上就不用管，它自己记。出事之后：
+装上就不用管，它自己记。出事之后三条路，任选：
 
-1. 直接跟 agent 说「桌面图标怎么全白了」，它会调 `aftermath_history` 查上一轮删了什么；
-2. 或者自己输 `/aftermath report --last 1` 看明细；
-3. 记录存在 `$DSH_HOME/state/aftermath/`。
+1. **Plugins 页直接看**：打开 dsh-aftermath 的详情，卡片下半截是「最近变更」——最近 8 轮、点开看逐条变更与归因。这个面板不依赖对话，新开的窗口也能看。
+2. **跟 agent 说一句**「桌面图标怎么全白了」，它会调 `aftermath_history` 查上一轮删了什么。
+3. **自己输命令** `/aftermath report --last 1` 看明细。
+
+记录存在 `$DSH_HOME/state/aftermath/`。
+
+---
+
+## 插件详情页的「最近变更」面板
+
+位于卡片下半截，标题下就是今天的轮次与变更数，往下一轮一行：
+
+- `16:24 #50 新建 1 · 修改 4` —— 点一行展开，逐条列出 `✔ 新建 ~\Desktop\a.txt 确定`；
+- 这一轮观测目录内**没变化但执行过写操作**时，那一行显示黄色提示「可能改在别处」，不留空；
+- 面板底部单独列「命令提到、但不在观测目录内的路径」，也就是根外的线索；
+- 右上角「刷新」重新读一遍，数据与 `/aftermath report` 同一份，不额外落盘。
+
+为什么它能用而命令不能：斜杠命令必须绑一个已存在的会话，插件详情页没有会话；面板走的是 Host 自己注册的只读路由 `GET /aftermath/recent`（同源、只读、`cache-control: no-store`），所以不需要对话。
 
 ## 工作方式
 
@@ -205,7 +220,7 @@ $DSH_HOME/state/aftermath/
 ## 开发
 
 ```bash
-npm test   # 132 个测试
+npm test   # 138 个测试
 ```
 
 零运行时依赖，只用 `node:` 内置模块。观测走 `ctx.on('session/event')`，`inject: ['tools']` 仅用于注册 `aftermath_history`。

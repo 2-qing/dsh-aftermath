@@ -1,13 +1,14 @@
 {
   "name": "dsh-aftermath",
-  "version": "0.5.5",
+  "version": "0.6.0",
   "description": "记录每轮对话中观测目录的文件变更，事后可倒查改了什么、出自哪条命令。",
   "type": "module",
   "main": "lib/index.js",
   "exports": {
     ".": "./lib/index.js",
     "./client": "./lib/client.js",
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./icon": "./assets/icon-256.png"
   },
   "files": [
     "lib",
@@ -49,7 +50,8 @@
     },
     "capabilities": [
       "fs:read",
-      "tools:register"
+      "tools:register",
+      "network:ingress"
     ],
     "compatibility": {
       "dshReleases": {
@@ -64,7 +66,10 @@
         "@deepseek-ai/dsh-client-ui-slots",
         "@deepseek-ai/dsh-client-ui-settings"
       ]
-    }
+    },
+    "labels": [
+      "remote-access"
+    ]
   },
   "private": true
 }
