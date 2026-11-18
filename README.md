@@ -1,5 +1,7 @@
 # dsh-aftermath
 
+![dsh-aftermath](assets/icon-512.png)
+
 记录 AI 每轮对话对观测目录的文件改动。出事之后可以倒查：改了哪些文件、大概是哪条命令改的、怎么恢复。
 
 DSH 插件，零依赖，不联网，不读文件内容。
