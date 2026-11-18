@@ -223,3 +223,30 @@ test('引号包着的重定向目标、MSYS 路径、脚本宿主里的只读动
   const hostOnly = ev('node build.js');
   assert.equal(hostOnly.mutating, true, '只看到脚本宿主、看不出读写时保守算写');
 });
+
+test('参数里只有载荷文本时不产出证据（compress 的摘要曾把文件抬到「确定」）', () => {
+  const leak = [
+    "printf 'x' > am-redirect.txt",
+    'Out-File C:/Users/x/Desktop/am-redirect.txt',
+    'Remove-Item /c/Users/x/Desktop/old.txt',
+  ].join('\n');
+
+  const compress = extractEvidence(call('compress', { content: leak }));
+  assert.equal(compress.mutating, false);
+  assert.equal(compress.absPaths.length, 0, '载荷文本里的路径不算证据');
+
+  const write = extractEvidence(call('write', { file_path: 'C:/Users/x/Desktop/real.txt', content: leak }));
+  assert.equal(write.mutating, true);
+  assert.deepEqual(write.absPaths.map((p) => p.path), [path.win32.normalize('C:/Users/x/Desktop/real.txt')], '只认 file_path，不认 content');
+
+  const unknown = extractEvidence(call('mystery_tool', { note: leak }));
+  assert.equal(unknown.mutating, false);
+  assert.equal(unknown.absPaths.length, 0);
+
+  const attributed = attributeChanges(
+    [{ kind: 'created', rel: 'am-redirect.txt', abs: 'C:/Users/x/Desktop/am-redirect.txt', after: { size: 1, mtime: 6000 } }],
+    [{ callId: 'a', name: 'compress', at: 5000, endAt: 7000, arguments: JSON.stringify({ content: leak }) }],
+    { slackMs: 1500, turnEndAt: 9000 },
+  );
+  assert.equal(attributed[0].attribution.confidence, 'unattributed');
+});

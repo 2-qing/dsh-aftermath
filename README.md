@@ -33,7 +33,8 @@ DSH 插件，零依赖，不联网，不读文件内容。
 
 - `printf x > a.txt` 这类靠重定向落盘的写法也算写（`>` / `>>` / `2>` / `Out-File` 都认），目标路径计入证据；引号里的 `>` 是文本，不算；
 - `/c/Users/...` 这种 Git Bash 路径会翻成 `C:\Users\...` 再比对，不会因为写法不同就认不出来；
-- `powershell -c "Get-Content x"` 是读、`powershell -c "Remove-Item x"` 是写：先看里面的动词，两者都对不上（`node build.js`）时才保守地算写。
+- `powershell -c "Get-Content x"` 是读、`powershell -c "Remove-Item x"` 是写：先看里面的动词，两者都对不上（`node build.js`）时才保守地算写；
+- 只从命令参数和路径参数里取证据，`content` / `prompt` 这类载荷文本不参与。否则某个工具的参数里碰巧写了 `Out-File` 和一条桌面路径，那个文件就会被标成「确定」——这是真机记录里抓到过的误判。
 
 否则这类调用会被当成只读，白白丢掉区间证据。
 
@@ -143,7 +144,7 @@ $DSH_HOME/state/aftermath/
 ## 开发
 
 ```bash
-npm test   # 105 个测试
+npm test   # 106 个测试
 ```
 
 零运行时依赖，只用 `node:` 内置模块。观测走 `ctx.on('session/event')`，`inject: ['tools']` 仅用于注册 `aftermath_history`。
