@@ -425,3 +425,26 @@ test('并行配对有歧义时健康度写出来', () => {
   );
   assert.match(text, /配对歧义：2 次/);
 });
+
+test('根外清单里丢掉空设备（旧记录里已经存了 \dev\null）', () => {
+  const text = renderTurnReport(
+    record({
+      changes: [
+        {
+          kind: 'created',
+          rootId: 'desktop',
+          root: ROOT,
+          rel: 'a.txt',
+          after: { size: 1, mtime: 2 },
+          attribution: { confidence: 'certain', how: 'exact-path', tool: 'write' },
+        },
+      ],
+      calls: [
+        { name: 'bash', verb: '>', mutating: true, at: 1, paths: ['\dev\null', 'D:/tools/x.log'] },
+      ],
+    }),
+    { maskHome: false, symptoms: false },
+  );
+  assert.match(text, /D:\/tools\/x\.log/);
+  assert.doesNotMatch(text, /dev\\null|\dev\null/);
+});

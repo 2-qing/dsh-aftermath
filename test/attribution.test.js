@@ -250,3 +250,22 @@ test('参数里只有载荷文本时不产出证据（compress 的摘要曾把�
   );
   assert.equal(attributed[0].attribution.confidence, 'unattributed');
 });
+
+test('重定向到空设备不算路径证据（2>/dev/null 到处都是）', () => {
+  const devnull = extractEvidence(call('bash', { command: 'npm run build 2>/dev/null' }));
+  assert.deepEqual(devnull.absPaths, [], '/dev/null 不是文件');
+
+  const nul = extractEvidence(call('bash', { command: 'node build.js > NUL' }));
+  assert.deepEqual(nul.absPaths, []);
+
+  const real = extractEvidence(call('bash', { command: 'node build.js > out.txt' }));
+  assert.deepEqual(real.absPaths.map((item) => item.path), ['out.txt']);
+});
+
+test('URL 里的 s:// 不算 S: 盘，裸路径要求左侧是分隔符', () => {
+  const curl = extractEvidence(call('bash', { command: 'curl https://api.github.com/repos/x' }));
+  assert.deepEqual(curl.absPaths, []);
+
+  const cp = extractEvidence(call('bash', { command: 'cp C:/a/b.txt D:/c/d.txt' }));
+  assert.deepEqual(cp.absPaths.map((item) => item.path), [path.win32.normalize('C:/a/b.txt'), path.win32.normalize('D:/c/d.txt')]);
+});
