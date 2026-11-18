@@ -293,3 +293,57 @@ test('区间命中的变更在表格里写「区间内」，健康度把时间�
   assert.match(text, /\| 新建 \| wide-window\.txt \|.*○时间窗内 \|/);
   assert.match(text, /时间证据：1 处 mtime 落在某次调用的起止区间内，1 处只落在整轮宽窗/);
 });
+
+test('零变更但写过命令：指明改动可能落在观测根之外', () => {
+  const text = renderTurnReport(
+    record({
+      calls: [
+        {
+          name: 'bash',
+          verb: 'redirect',
+          mutating: true,
+          excerpt: 'printf hi > D:/项目/a.txt',
+          at: 1,
+          endAt: 2,
+          paths: ['D:/项目/a.txt'],
+        },
+      ],
+    }),
+    { maskHome: false, symptoms: false },
+  );
+  assert.match(text, /执行过 1 条写操作/);
+  assert.match(text, /printf hi/);
+  assert.match(text, /不在观测根内的路径/);
+  assert.match(text, /a\.txt/);
+});
+
+test('根内路径不进“根外”清单，根外路径去重并计数', () => {
+  const inside = renderTurnReport(
+    record({
+      calls: [{ name: 'bash', mutating: true, excerpt: 'rm gone.txt', at: 1, endAt: 2, paths: [`${ROOT}/gone.txt`] }],
+    }),
+    { maskHome: false, symptoms: false },
+  );
+  assert.doesNotMatch(inside, /不在观测根内的路径/);
+
+  const outside = renderTurnReport(
+    record({
+      calls: [
+        { name: 'bash', verb: 'rm', mutating: true, excerpt: 'rm E:/x.log', at: 1, endAt: 2, paths: ['E:/x.log'] },
+        { name: 'bash', verb: 'rm', mutating: true, excerpt: 'rm e:\\X.LOG', at: 3, endAt: 4, paths: ['e:\\X.LOG'] },
+      ],
+    }),
+    { maskHome: false, symptoms: false },
+  );
+  assert.match(outside, /不在观测根内的路径/);
+  assert.match(outside, /x\.log` ×2/);
+});
+
+test('renderHistory 标出“写过命令但根内无变更”的轮次', () => {
+  const text = renderHistory([
+    record({
+      calls: [{ name: 'bash', mutating: true, excerpt: 'rm D:/x', at: 1, endAt: 2, paths: ['D:/x'] }],
+    }),
+  ]);
+  assert.match(text, /0（写过 1 条命令，根外？）/);
+});

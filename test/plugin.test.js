@@ -228,3 +228,65 @@ test('启动自检：命名空间缺失时记录原因，不抛异常', async ()
     assert.match(probe.error, /没有为 dsh-aftermath 建立设置命名空间/);
   });
 });
+
+test('零变更但写过根外文件：仍落一条轻记录，带路径线索', () => {
+  withEnv(({ root, dir }) => {
+    const host = fakeHost();
+    apply(host.ctx, { roots: [root], depth: 1, maskHome: false });
+    const session = { id: 'sess-quiet' };
+    host.emit(session, { type: 'turn/start', time: Date.now(), data: { turn: 3 } });
+    const outside = path.join(dir, 'elsewhere', 'note.txt');
+    host.emit(session, {
+      type: 'tool/call',
+      time: Date.now(),
+      data: { callId: 'q1', name: 'bash', arguments: JSON.stringify({ command: `printf hi > "${outside.replace(/\\/g, '/')}"` }) },
+    });
+    host.emit(session, { type: 'tool/result', time: Date.now(), data: { callId: 'q1' } });
+    host.emit(session, { type: 'turn/end', time: Date.now(), data: { turn: 3 } });
+
+    const records = readTurns({ limit: 5 });
+    assert.equal(records.length, 1);
+    const record = records[0];
+    assert.equal(record.kind, 'quiet');
+    assert.equal(record.changes.length, 0);
+    assert.equal(record.counts.total, 0);
+    assert.equal(record.calls.length, 1);
+    assert.equal(record.calls[0].mutating, true);
+    assert.ok(
+      record.calls[0].paths.some((p) => p.toLowerCase().endsWith('note.txt')),
+      `命令里的绝对路径应该被留下来，实际：${JSON.stringify(record.calls[0].paths)}`,
+    );
+  });
+});
+
+test('关闭 recordQuietTurns 后，零变更回合不再落盘', () => {
+  withEnv(({ root, dir }) => {
+    const host = fakeHost();
+    apply(host.ctx, { roots: [root], depth: 1, maskHome: false, recordQuietTurns: false });
+    const session = { id: 'sess-quiet-off' };
+    host.emit(session, { type: 'turn/start', time: Date.now(), data: { turn: 4 } });
+    host.emit(session, {
+      type: 'tool/call',
+      time: Date.now(),
+      data: { callId: 'q2', name: 'bash', arguments: JSON.stringify({ command: `rm -f "${path.join(dir, 'x.txt').replace(/\\/g, '/')}"` }) },
+    });
+    host.emit(session, { type: 'turn/end', time: Date.now(), data: { turn: 4 } });
+    assert.equal(readTurns({ limit: 5 }).length, 0);
+  });
+});
+
+test('零变更且只读：不落盘（不制造噪声）', () => {
+  withEnv(({ root }) => {
+    const host = fakeHost();
+    apply(host.ctx, { roots: [root], depth: 1, maskHome: false });
+    const session = { id: 'sess-readonly' };
+    host.emit(session, { type: 'turn/start', time: Date.now(), data: { turn: 5 } });
+    host.emit(session, {
+      type: 'tool/call',
+      time: Date.now(),
+      data: { callId: 'r1', name: 'read', arguments: JSON.stringify({ file_path: path.join(root, 'keep.txt') }) },
+    });
+    host.emit(session, { type: 'turn/end', time: Date.now(), data: { turn: 5 } });
+    assert.equal(readTurns({ limit: 5 }).length, 0);
+  });
+});
