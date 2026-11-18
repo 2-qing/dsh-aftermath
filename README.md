@@ -120,7 +120,7 @@ $DSH_HOME/state/aftermath/
 ## 开发
 
 ```bash
-npm test   # 70 个测试
+npm test   # 73 个测试
 ```
 
 零运行时依赖，只用 `node:` 内置模块。观测走 `ctx.on('session/event')`，`inject: ['tools']` 仅用于注册 `aftermath_history`。

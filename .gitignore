@@ -3,5 +3,8 @@ node_modules/
 .DS_Store
 Thumbs.db
 
+# npm pack 产物
+*.tgz
+
 # 本地设计笔记（含本机路径），不发布
 /PLAN.md
