@@ -41,3 +41,7 @@ test('doctor 报告的自检快照路径指向状态目录', () => {
   const text = doctorText({ probeSettings: () => probe() });
   assert.match(text, /自检快照：.*settings-probe\.json/);
 });
+test('doctor 列出本插件可见的字段，便于判断卡片为什么只有部分字段', () => {
+  const text = doctorText({ probeSettings: () => probe() });
+  assert.match(text, /本插件可见字段（2）：enabled, depth/);
+});

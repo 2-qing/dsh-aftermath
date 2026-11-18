@@ -161,3 +161,14 @@ test('globToRegex 处理 * 与 ?', () => {
   assert.equal(globToRegex('C:\\a\\*.txt').test('C:\\a\\b.txt'), true);
   assert.equal(globToRegex('C:\\a\\?.txt').test('C:\\a\\bb.txt'), false);
 });
+
+test('渲染标签按 how 细分：区间命中不能说成「时间窗内」', async () => {
+  const { confidenceLabel } = await import('../lib/attribution.js');
+  assert.deepEqual(confidenceLabel({ confidence: 'window', how: 'call-interval' }), { mark: '○', label: '区间内' });
+  assert.deepEqual(confidenceLabel({ confidence: 'window', how: 'call-interval-open' }), { mark: '○', label: '区间内·未封口' });
+  assert.deepEqual(confidenceLabel({ confidence: 'window', how: 'turn-window' }), { mark: '○', label: '时间窗内' });
+  assert.deepEqual(confidenceLabel({ confidence: 'window', how: 'mutating-call-in-turn' }), { mark: '○', label: '时间窗内·无发生时间' });
+  assert.deepEqual(confidenceLabel({ confidence: 'certain', how: 'exact-path' }), { mark: '✔', label: '确定' });
+  assert.deepEqual(confidenceLabel({ confidence: 'unattributed', how: 'no-mutating-evidence' }), { mark: '？', label: '无法归因' });
+  assert.deepEqual(confidenceLabel(undefined), { mark: '？', label: '无法归因' });
+});

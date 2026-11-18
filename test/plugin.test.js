@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { apply, name, inject } from '../lib/index.js';
 import { readTurns } from '../lib/store.js';
+import { stateDir } from '../lib/config.js';
 
 /** 最小化的宿主替身：只实现本插件用到的四个面。 */
 function fakeHost() {
@@ -12,16 +13,25 @@ function fakeHost() {
   const tools = [];
   const commands = [];
   const logs = [];
+  const settings = { describe: () => [] };
   const ctx = {
     on(type, fn) {
       handlers.set(type, fn);
       return () => handlers.delete(type);
     },
     inject(services, callback) {
-      if (Array.isArray(services) && services.includes('commands')) {
+      if (!Array.isArray(services)) return;
+      if (services.includes('commands')) {
         callback({
           get(service) {
             return service === 'commands' ? { register: (definition) => commands.push(definition) } : undefined;
+          },
+        });
+      }
+      if (services.includes('settings')) {
+        callback({
+          get(service) {
+            return service === 'settings' ? settings : undefined;
           },
         });
       }
@@ -38,6 +48,7 @@ function fakeHost() {
     tools,
     commands,
     logs,
+    settings,
     emit(session, event) {
       const handler = handlers.get('session/event');
       assert.ok(handler, 'session/event 未订阅');
@@ -186,5 +197,34 @@ test('status / roots 子命令可用', async () => {
     const roots = await command.handler({ rawInput: 'roots' });
     assert.match(roots.text, /观测根/);
     assert.match(roots.text, /state/);
+  });
+});
+
+test('启动自检：命名空间与字段名取自 describe 的 value，写进 settings-probe.json', async () => {
+  await withEnv(async ({ root }) => {
+    const host = fakeHost();
+    host.settings.describe = () => [
+      { ns: 'dsh-aftermath', value: { enabled: true, depth: 2 } },
+      { ns: 'web', value: {}, schema: { uid: 7, refs: { 7: { properties: { a: {}, b: {} } } } } },
+    ];
+    apply(host.ctx, { roots: [root], depth: 1, maskHome: false });
+    const probe = JSON.parse(fs.readFileSync(path.join(stateDir(), 'settings-probe.json'), 'utf8'));
+    assert.equal(probe.ourNamespace, true);
+    const ours = probe.namespaces.find((row) => row.ns === 'dsh-aftermath');
+    assert.deepEqual(ours.fields, ['enabled', 'depth']);
+    const web = probe.namespaces.find((row) => row.ns === 'web');
+    assert.deepEqual(web.fields, ['a', 'b']);
+    assert.equal(probe.error, null);
+  });
+});
+
+test('启动自检：命名空间缺失时记录原因，不抛异常', async () => {
+  await withEnv(async ({ root }) => {
+    const host = fakeHost();
+    host.settings.describe = () => [{ ns: 'other', value: { x: 1 } }];
+    apply(host.ctx, { roots: [root], depth: 1, maskHome: false });
+    const probe = JSON.parse(fs.readFileSync(path.join(stateDir(), 'settings-probe.json'), 'utf8'));
+    assert.equal(probe.ourNamespace, false);
+    assert.match(probe.error, /没有为 dsh-aftermath 建立设置命名空间/);
   });
 });

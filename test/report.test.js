@@ -246,3 +246,50 @@ test('截断时明说只列了前几条', () => {
   assert.match(text, /前 200 条/);
   assert.match(text, /时间证据只到回合宽窗/);
 });
+
+test('区间命中的变更在表格里写「区间内」，健康度把时间窗再拆一层', () => {
+  const changes = [
+    {
+      kind: 'created',
+      rootId: 'desktop',
+      root: ROOT,
+      rel: 'in-interval.txt',
+      after: { size: 1, mtime: 3 },
+      attribution: { confidence: 'window', how: 'call-interval', tool: 'bash', verb: 'npm', callIndex: 0 },
+    },
+    {
+      kind: 'created',
+      rootId: 'desktop',
+      root: ROOT,
+      rel: 'wide-window.txt',
+      after: { size: 1, mtime: 9 },
+      attribution: { confidence: 'window', how: 'turn-window', tool: 'bash', verb: 'npm', callIndex: 0 },
+    },
+  ];
+  const text = renderTurnReport(
+    record({
+      changes,
+      counts: {
+        created: 2,
+        deleted: 0,
+        modified: 0,
+        moved: 0,
+        total: 2,
+        confidence: { certain: 0, likely: 0, window: 2, unattributed: 0 },
+      },
+      health: {
+        scanMs: 1,
+        roots: 1,
+        scanned: 10,
+        changed: 2,
+        listed: 2,
+        truncated: false,
+        intervals: { calls: 2, mutating: 2, timed: 2, closed: 2, overlaps: 0, slackMs: 1500 },
+      },
+    }),
+    { maskHome: false, symptoms: false },
+  );
+  assert.match(text, /\| 新建 \| in-interval\.txt \|.*○区间内 \|/);
+  assert.match(text, /\| 新建 \| wide-window\.txt \|.*○时间窗内 \|/);
+  assert.match(text, /时间证据：1 处 mtime 落在某次调用的起止区间内，1 处只落在整轮宽窗/);
+});
