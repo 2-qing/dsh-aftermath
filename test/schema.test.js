@@ -81,3 +81,26 @@ test('SCHEMA_SOURCE 与是否加载到 schema 一致', () => {
   assert.equal(SCHEMA_SOURCE, loaded ? loaded.source : null);
   assert.equal(typeof Config, loaded ? 'function' : 'undefined');
 });
+test('行 Config 覆盖 DEFAULTS 的每个键（防止设置项只加在一边）', async () => {
+  const { Config } = await import('../lib/schema.js');
+  const { DEFAULTS } = await import('../lib/config.js');
+  if (!Config) return; // 拿不到 schemastery 时跳过
+  const json = Config.toJSON();
+  const dict = json.refs[String(json.uid)].dict || {};
+  const missing = Object.keys(DEFAULTS).filter((key) => !(key in dict));
+  assert.deepEqual(missing, [], `这些配置项没进 schema：${missing.join(', ')}`);
+});
+
+test('schema 里的每个字段都有默认值，否则宿主不会把它发给插件', async () => {
+  const { Config } = await import('../lib/schema.js');
+  if (!Config) return;
+  const json = Config.toJSON();
+  const dict = json.refs[String(json.uid)].dict || {};
+  const noDefault = Object.entries(dict)
+    .filter(([, id]) => {
+      const node = json.refs[String(id)] || {};
+      return !node.meta || !Object.prototype.hasOwnProperty.call(node.meta, 'default');
+    })
+    .map(([name]) => name);
+  assert.deepEqual(noDefault, [], `这些字段没有默认值：${noDefault.join(', ')}`);
+});
