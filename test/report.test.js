@@ -162,3 +162,87 @@ test('detectSymptoms 桌面根读不到时提示可能被重定向', () => {
   const symptoms = detectSymptoms([], { roots: [{ id: 'desktop', path: ROOT, ok: false, error: 'missing-root' }] });
   assert.ok(symptoms.some((s) => s.id === 'desktop-redirected'));
 });
+
+test('renderTurnReport 输出报告健康度：耗时、覆盖量、区间可用性', () => {
+  const changes = [
+    {
+      kind: 'modified',
+      rootId: 'desktop',
+      root: ROOT,
+      rel: 'a.txt',
+      before: { size: 1, mtime: 1 },
+      after: { size: 2, mtime: 2 },
+      attribution: { confidence: 'certain', how: 'exact-path', tool: 'write', verb: 'tool:write' },
+    },
+    {
+      kind: 'modified',
+      rootId: 'desktop',
+      root: ROOT,
+      rel: 'b.txt',
+      before: { size: 1, mtime: 1 },
+      after: { size: 2, mtime: 2 },
+      attribution: { confidence: 'window', how: 'call-interval', tool: 'bash', verb: 'rm' },
+    },
+  ];
+  const text = renderTurnReport(
+    record({
+      changes,
+      counts: {
+        created: 0,
+        deleted: 0,
+        modified: 2,
+        moved: 0,
+        total: 2,
+        confidence: { certain: 1, likely: 0, window: 1, unattributed: 0 },
+      },
+      health: {
+        scanMs: 12,
+        roots: 2,
+        scanned: 446,
+        changed: 2,
+        listed: 2,
+        truncated: false,
+        intervals: { calls: 5, mutating: 3, timed: 3, closed: 2, overlaps: 1, slackMs: 1500 },
+      },
+    }),
+    { maskHome: false, symptoms: false },
+  );
+  assert.match(text, /## 报告健康度/);
+  assert.match(text, /12 ms/);
+  assert.match(text, /446 个条目/);
+  assert.match(text, /确定 1（50%）/);
+  assert.match(text, /2\/3 拿到起止时刻/);
+  assert.match(text, /1 次没等到结果/);
+  assert.match(text, /1 对区间重叠/);
+  assert.doesNotMatch(text, /未列全/);
+});
+
+test('没有 health 字段的旧记录照常渲染，不出现健康度小节', () => {
+  const text = renderTurnReport(record(), { maskHome: false });
+  assert.doesNotMatch(text, /报告健康度/);
+});
+
+test('截断时明说只列了前几条', () => {
+  const changes = [
+    {
+      kind: 'created',
+      rootId: 'desktop',
+      root: ROOT,
+      rel: 'a.txt',
+      before: null,
+      after: { size: 2, mtime: 2 },
+      attribution: { confidence: 'certain', how: 'exact-path', tool: 'write', verb: 'tool:write' },
+    },
+  ];
+  const text = renderTurnReport(
+    record({
+      changes,
+      counts: { created: 1, deleted: 0, modified: 0, moved: 0, total: 1, confidence: { certain: 1, likely: 0, window: 0, unattributed: 0 } },
+      health: { scanMs: 3, roots: 1, scanned: 10, changed: 240, listed: 200, truncated: true, intervals: { timed: 0 } },
+    }),
+    { maskHome: false, symptoms: false },
+  );
+  assert.match(text, /未列全/);
+  assert.match(text, /前 200 条/);
+  assert.match(text, /时间证据只到回合宽窗/);
+});

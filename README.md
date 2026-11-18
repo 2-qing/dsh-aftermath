@@ -17,15 +17,17 @@ DSH 插件，零依赖，不联网，不读文件内容。
 很多事故不是 `write`/`edit` 工具造成的，而是 agent 跑了一条 `pwsh`/`bash` 命令直接改磁盘——只在工具调用层做 hook 看不到这类改动。所以 aftermath 在文件系统层观测：
 
 - 每轮开始和结束各对观测目录做一次快照（桌面 48 条实测约 0.3 ms），做差得到变更列表；
-- 拿同一轮捕获的 `tool/call`（工具名和参数原文）给每条变更标归因；
-- 归因分四档，报告里逐条标注：
+- 同时记下每次工具调用的起止时刻（`tool/call` 与 `tool/result` 各带一个时间）；
+- 拿同一轮的调用证据给每条变更标归因，归因分四档，报告里逐条标注：
 
 | 档位 | 判据 |
 | --- | --- |
 | ✔ 确定 | 命令里出现该文件的绝对路径 |
 | ◐ 很可能 | 命令在处理这个目录，或本轮只有它提到这个文件名 |
-| ○ 时间窗内 | 改动 mtime 落在某次调用后 8 秒内 |
+| ○ 时间窗内 | 改动 mtime 落在某次调用的起止区间内（没等到结束时刻就落到整轮宽窗） |
 | ？ 无法归因 | 没有证据。报告会写明，并附上该轮命令原文供自己判断 |
+
+「时间窗内」分两级：先比**这一次调用自己的区间**（窄，几乎不会错配到别的调用）；区间全不命中，才退回**整个回合的宽窗**，那时它只说明「这一轮里有人动过」。依据列会写出是哪一级（`call-interval` / `turn-window`）。
 
 两条规则：只读命令不算证据（`Get-Content a.txt` 提到路径但不会把 a.txt 标成「确定」）；某个目录这轮扫描失败时整根跳过，不会误报一排「删除」。
 
@@ -40,12 +42,19 @@ DSH 插件，零依赖，不联网，不读文件内容。
 | --- | --- | --- | --- | --- | --- |
 | 删除 | Desktop\微信.lnk | 1.2 KB | 20:41:03 | ✔ 确定 | 命令里出现该绝对路径（bash） |
 | 删除 | Desktop\QQ.lnk | 1.1 KB | 20:41:03 | ◐ 很可能 | 该调用在处理 Desktop\ 下的文件 |
-| 修改 | Desktop\desktop.ini | 218 B | 20:41:04 | ○ 时间窗内 | 改动时间落在 bash 调用后 8s 内 |
+| 修改 | Desktop\desktop.ini | 218 B | 20:41:04 | ○ 时间窗内 | 落在 bash 这次调用的起止区间内 |
+
+报告健康度
+- 快照耗时：本轮结束这次扫描 1 ms，覆盖 2 个根 / 446 个条目
+- 归因分布：✔确定 2（50%） · ◐很可能 1（25%） · ○时间窗内 1（25%） · ？无法归因 0（0%）
+- 调用区间：5 次调用、3 次写操作，3/3 拿到起止时刻（容差 1500 ms）
 
 可能的症状：桌面图标变白/空白
   1) 检查快捷方式是否失效：powershell -c "..."
   2) 刷新图标缓存：ie4uinit.exe -show
 ```
+
+末尾那段「报告健康度」是这份记录自己的可信度证据：扫描耗时、覆盖了多少条目、四档归因各占多少、有几条调用真正拿到了起止时刻、有没有因为条数上限被截断。数字难看的时候，就不该拿它当定论。
 
 ## 安装
 
@@ -61,7 +70,9 @@ Plugins 页打开 dsh-aftermath 的详情，卡片里能改：
 
 总开关点一下即时写入；其余几项改完点保存。保存是逐字段写入的：某个字段被宿主拒绝就停在那一条并显示失败，不会显示「已保存」。保存后立即生效，不用重启插件。
 
-卡片能不能改这些字段，取决于宿主有没有拿到插件的设置 schema。用 `link:` 方式安装（本地开发目录）时，Node 默认按真实路径解析模块，`lib/schema.js` 为此会在 `DSH_PROFILE_DIR`、`DSH_INSTALL_DIR`、`$DSH_HOME` 这几处补找 `@deepseek-ai/schemastery`。如果 schema 还是没加载到，卡片里只会剩总开关，`/aftermath status` 的「设置表单」一行会写明原因，这时改用下面的 yml 配置。
+卡片能不能改这些字段，取决于宿主有没有拿到插件的设置 schema。用 `link:` 方式安装（本地开发目录）时，Node 默认按真实路径解析模块，插件目录可能和依赖不在同一个盘，`lib/schema.js` 因此按 `DSH_PROFILE_DIR`、`DSH_INSTALL_DIR`、`$DSH_HOME`、以及 exe 旁边的 `resources/app.asar/dsh/node_modules` 逐处找 `@deepseek-ai/schemastery`。
+
+怀疑卡片不对劲时先跑 `/aftermath doctor`：它会打印 Config 是否导出、schema 从哪加载的、宿主给本插件建的设置命名空间在不在。同一份自检在每次启动时也会写到 `$DSH_HOME/state/aftermath/settings-probe.json`。如果确认 schema 没加载到，卡片里只会剩总开关，这时改用下面的 yml 配置。
 
 ## 配置（yml）
 
@@ -76,6 +87,7 @@ Plugins 页打开 dsh-aftermath 的详情，卡片里能改：
     extraRoots: ['D:\项目']
     retentionDays: 7
     maskHome: true                # 报告里把家目录打码成 ~
+    intervalSlackMs: 1500         # 调用区间归因的容差（毫秒），0 = 严丝合缝
 ```
 
 内置标识：`desktop`、`downloads`、`documents`、`pictures`、`music`、`videos`，依次探测 `%USERPROFILE%\<名>`、`OneDrive\<名>`、中文名（`桌面`/`下载`）。
@@ -90,6 +102,7 @@ Windows 上桌面被 OneDrive 重定向很常见。插件不读注册表，路�
 | `/aftermath scan [--keep]` | 立刻扫描，与上次基线对比 |
 | `/aftermath roots` | 打印解析出的观测根 |
 | `/aftermath status` | 配置、存档位置、记录条数 |
+| `/aftermath doctor` | 自检：设置命名空间是否就绪、schema 从哪加载 |
 | `/aftermath help` | 帮助 |
 
 `--save` 把完整报告写到 `$DSH_HOME/state/aftermath/reports/`。
@@ -114,13 +127,14 @@ $DSH_HOME/state/aftermath/
 - 只覆盖配置的根和深度，根之外的改动看不到。
 - `moved` 是启发式判断（同名 + 同大小 + mtime 相近），报告里会标注。
 - 归因是证据强度分级，标 `？` 就是没有证据。
+- 调用区间依赖宿主给出 `tool/result`：命令用 `Start-Process` 或 `&` 拉起后台进程时，改动会发生在区间结束之后，只能落到宽窗。
 - 跨进程、跨会话的手动改动只能落进「时间窗内」或「无法归因」。
 - 不自动还原：只存路径不存内容，还原是 rollback 类插件的事。
 
 ## 开发
 
 ```bash
-npm test   # 73 个测试
+npm test   # 98 个测试
 ```
 
 零运行时依赖，只用 `node:` 内置模块。观测走 `ctx.on('session/event')`，`inject: ['tools']` 仅用于注册 `aftermath_history`。
