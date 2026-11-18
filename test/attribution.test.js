@@ -172,3 +172,27 @@ test('渲染标签按 how 细分：区间命中不能说成「时间窗内」', 
   assert.deepEqual(confidenceLabel({ confidence: 'unattributed', how: 'no-mutating-evidence' }), { mark: '？', label: '无法归因' });
   assert.deepEqual(confidenceLabel(undefined), { mark: '？', label: '无法归因' });
 });
+
+test('输出重定向也算写操作，否则这类调用会丢掉区间证据', async () => {
+  const { extractEvidence } = await import('../lib/attribution.js');
+  const ev = (command) => extractEvidence({ callId: 'c', name: 'bash', at: 1, arguments: JSON.stringify({ command }) });
+  const W = String.fromCharCode(92);
+  const abs = ['C:', W, 'Users', W, 'me', W, 'Desktop', W, 'out.txt'].join('');
+
+  const redirect = ev('printf hello > note.txt');
+  assert.equal(redirect.mutating, true);
+  assert.equal(redirect.source, 'redirect');
+  assert.equal(redirect.verb, '>');
+
+  const append = ev(`echo hi >> ${abs}`);
+  assert.equal(append.mutating, true);
+  assert.equal(append.verb, '>>');
+  assert.ok(append.absPaths.some((p) => p.lower.endsWith('out.txt')), '追加的绝对路径要进证据');
+
+  const stderr = ev('cmd.exe //c dir 2> err.txt');
+  assert.equal(stderr.mutating, true);
+  assert.equal(stderr.verb, '2>');
+
+  assert.equal(ev('echo "a > b"').mutating, false, '引号里的 > 是文本');
+  assert.equal(ev(`Get-Process | Out-File ${abs}`).verb, 'out-file');
+});
