@@ -127,12 +127,36 @@ Plugins 页打开 dsh-aftermath 的详情，卡片里能改：
     intervalSlackMs: 1500         # 调用区间归因的容差（毫秒），0 = 严丝合缝
     followCwd: true               # 当前会话的工作目录自动算进观测根（大目录只看顶层）
     recordQuietTurns: true        # 根内没变化、但执行过写操作时，也记一条只有命令摘要的轻记录
-    recordQuietTurns: true        # 根内无变化但写过命令时，留一条只含命令摘要的轻记录
 ```
 
 内置标识：`desktop`、`downloads`、`documents`、`pictures`、`music`、`videos`，依次探测 `%USERPROFILE%\<名>`、`OneDrive\<名>`、中文名（`桌面`/`下载`）。
 
 Windows 上桌面被 OneDrive 重定向很常见。插件不读注册表，路径靠别名探测加显式配置，跑 `/aftermath roots` 确认实际观测的目录对不对。
+
+## 默认排除表
+
+下面这些名字默认不扫（`exclude` 里写的是名字或通配，不是路径；大小写不敏感）：
+
+| 条目 | 为什么排除 |
+| --- | --- |
+| `node_modules` | 依赖目录，动辄几万个文件；删了重装即可 |
+| `.git` `.svn` `.vs` | 版本库与 IDE 的内部目录，改动不反映你自己的文件 |
+| `~$*` | Office 打开文档时生成的锁文件，开合一次就变，天天报一堆「新建/删除」 |
+| `Thumbs.db` `desktop.ini` `.DS_Store` | 系统/访达的缩略图与文件夹配置，被反复重写 |
+| `$RECYCLE.BIN` | 回收站：删掉的文件会落到这里，扫进来会把「删除」再报一遍 |
+| `System Volume Information` | 卷影副本等系统信息 |
+| `dist` `build` `.next` `.turbo` `coverage` | 构建产物与覆盖率报告，文件多、删了能重新生成 |
+| `__pycache__` `.venv` `venv` `.mypy_cache` `.pytest_cache` | Python 缓存与虚拟环境 |
+| `target` | Rust / Maven 的构建目录 |
+
+默认值是为了让报告可读：不排除的话，`cwd` 自动跟随一旦落在大仓库上，一轮扫描会从几十毫秒涨到几百毫秒，报告里还会塞满构建产物。
+
+两种改法：
+
+- 想加：把新名字写进 `exclude` 数组（yml 里这个数组是**整体替换**，不是追加）
+- 想减：如果某个目录叫 `build` 但里面确实有你心疼的文件，把它从数组里去掉
+
+被排除的目录**不进快照、也不进报告**——排除的语义是「当它不存在」，不是「看到但不记」。
 
 ## 命令
 
@@ -179,7 +203,7 @@ $DSH_HOME/state/aftermath/
 ## 开发
 
 ```bash
-npm test   # 126 个测试
+npm test   # 132 个测试
 ```
 
 零运行时依赖，只用 `node:` 内置模块。观测走 `ctx.on('session/event')`，`inject: ['tools']` 仅用于注册 `aftermath_history`。

@@ -103,3 +103,12 @@ test('stateDir 跟随 DSH_HOME', () => {
     else process.env.DSH_HOME = original;
   }
 });
+
+test('默认排除表覆盖工程目录（README 有逐条说明）', async () => {
+  const { DEFAULTS, normalizeConfig } = await import('../lib/config.js');
+  for (const name of ['dist', 'build', '.next', '.turbo', 'coverage', '__pycache__', '.venv', 'venv', '.mypy_cache', '.pytest_cache', 'target']) {
+    assert.ok(DEFAULTS.exclude.includes(name), `默认排除表缺少 ${name}`);
+  }
+  assert.ok(DEFAULTS.exclude.includes('node_modules'));
+  assert.equal(normalizeConfig({}).exclude.length, DEFAULTS.exclude.length);
+});
