@@ -142,6 +142,7 @@ Windows 上桌面被 OneDrive 重定向很常见。插件不读注册表，路�
 | `/aftermath scan [--keep]` | 立刻扫描，与上次基线对比 |
 | `/aftermath roots` | 打印解析出的观测根 |
 | `/aftermath roots --suggest` | 列出常用目录哪些已经盯上、哪些还没，并给出可直接粘的 yml |
+| `/aftermath roots --add <路径>` / `--remove <路径>` | 预览加/减之后会变成什么样子，并给出可粘贴的 yml（不替你改配置） |
 | `/aftermath status` | 配置、存档位置、记录条数 |
 | `/aftermath doctor` | 自检：设置命名空间是否就绪、schema 从哪加载 |
 | `/aftermath help` | 帮助 |
@@ -178,7 +179,7 @@ $DSH_HOME/state/aftermath/
 ## 开发
 
 ```bash
-npm test   # 125 个测试
+npm test   # 126 个测试
 ```
 
 零运行时依赖，只用 `node:` 内置模块。观测走 `ctx.on('session/event')`，`inject: ['tools']` 仅用于注册 `aftermath_history`。

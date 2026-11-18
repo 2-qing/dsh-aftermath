@@ -325,3 +325,15 @@ test('/aftermath roots --suggest 标出哪些常用目录还没加进来', async
     assert.match(result.text, /要盯着哪些地方/);
   });
 });
+
+test('/aftermath roots --add 预览加目录后的样子，不假装改配置', async () => {
+  await withEnv(async ({ root }) => {
+    const host = fakeHost();
+    apply(host.ctx, { roots: [root], maskHome: false });
+    const result = await host.commands[0].handler({ rawInput: 'roots --add D:/项目' });
+    assert.equal(result.kind, 'success');
+    assert.match(result.text, /准备加入/);
+    assert.match(result.text, /插件不替你写宿主配置/);
+    assert.match(result.text, /cordis\.patch\.yml/);
+  });
+});
