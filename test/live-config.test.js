@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { apply, Config } from '../lib/index.js';
-import { readField } from '../lib/schema.js';
+import { readField, SCHEMA_SOURCE } from '../lib/schema.js';
 import { readTurns } from '../lib/store.js';
 
 /**
@@ -71,7 +71,8 @@ test('readField：Volatile 引用取值，普通值原样返回', () => {
 });
 
 test('Config：拿不到 schemastery 时为 undefined，拿到时是对象', () => {
-  assert.ok(Config === undefined || typeof Config === 'object');
+  // 字段级细节见 schema.test.js：这里只保证 index.js 的再导出与 schema 加载状态一致
+  assert.equal(typeof Config, SCHEMA_SOURCE ? 'function' : 'undefined');
 });
 
 test('volatile 配置：关掉时不记，打开后同一进程内立即生效', async () => {
