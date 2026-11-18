@@ -1,3 +1,4 @@
+import path from 'node:path';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
@@ -39,7 +40,8 @@ test('extractEvidence：只读命令不算写操作', () => {
   const evidence = extractEvidence(call('bash', { command: 'Get-Content C:/Users/x/Desktop/a.txt' }));
   assert.equal(evidence.mutating, false);
   assert.equal(evidence.readOnly, true);
-  assert.equal(evidence.verb, null);
+  assert.equal(evidence.source, 'read');
+  assert.equal(evidence.verb, 'get-content');
 });
 
 test('extractEvidence：写工具按名字识别，即使没有 shell 动词', () => {
@@ -195,4 +197,29 @@ test('输出重定向也算写操作，否则这类调用会丢掉区间证据',
 
   assert.equal(ev('echo "a > b"').mutating, false, '引号里的 > 是文本');
   assert.equal(ev(`Get-Process | Out-File ${abs}`).verb, 'out-file');
+});
+
+test('引号包着的重定向目标、MSYS 路径、脚本宿主里的只读动词都判对', async () => {
+  const { extractEvidence } = await import('../lib/attribution.js');
+  const ev = (command) => extractEvidence({ callId: 'c', name: 'bash', at: 1, arguments: JSON.stringify({ command }) });
+  // 用 join 拼期望值，避免源码里出现反斜杠字面量
+  const win = (...parts) => path.win32.join(...parts).toLowerCase();
+
+  const quoted = ev('printf x >> "/c/Users/me/Desktop/a.txt"');
+  assert.equal(quoted.mutating, true, '引号里的目标也是写');
+  assert.ok(quoted.absPaths.some((p) => p.lower === win('c:', 'Users', 'me', 'Desktop', 'a.txt')), 'MSYS 路径要翻成 Windows 绝对路径');
+
+  const msys = ev('rm -f /c/Users/me/Desktop/old.txt');
+  assert.equal(msys.mutating, true);
+  assert.ok(msys.absPaths.some((p) => p.lower === win('c:', 'Users', 'me', 'Desktop', 'old.txt')));
+
+  const readOnly = ev('powershell -NoProfile -Command "Get-Content a.txt"');
+  assert.equal(readOnly.mutating, false, 'powershell 里只读动词不该算写');
+  assert.equal(readOnly.source, 'read');
+
+  const hostWrite = ev('powershell -NoProfile -Command "Remove-Item a.txt"');
+  assert.equal(hostWrite.mutating, true);
+
+  const hostOnly = ev('node build.js');
+  assert.equal(hostOnly.mutating, true, '只看到脚本宿主、看不出读写时保守算写');
 });
