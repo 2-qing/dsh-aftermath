@@ -290,3 +290,38 @@ test('零变更且只读：不落盘（不制造噪声）', () => {
     assert.equal(readTurns({ limit: 5 }).length, 0);
   });
 });
+
+test('quiet 记录能通过 aftermath_history 返回，不只存在于文件里', async () => {
+  await withEnv(async ({ root }) => {
+    const host = fakeHost();
+    apply(host.ctx, { roots: [root], maskHome: false });
+    const session = { id: 'sess-quiet-tool' };
+    host.emit(session, { type: 'turn/start', time: Date.now() - 5000, data: { turn: 9 } });
+    // 只在观测根之外写文件：根内零变更
+    const outside = path.join(path.dirname(root), 'elsewhere.txt');
+    host.emit(session, {
+      type: 'tool/call',
+      time: Date.now() - 4000,
+      data: { callId: 'c9', name: 'bash', arguments: JSON.stringify({ command: 'printf x > "' + outside + '"' }), step: 1 },
+    });
+    fs.writeFileSync(outside, 'x');
+    host.emit(session, { type: 'tool/result', time: Date.now() - 3000, data: { turn: 9, step: 1, callId: 'c9' } });
+    host.emit(session, { type: 'turn/end', time: Date.now(), data: { turn: 9 } });
+
+    const tool = host.tools.find((t) => t.name === 'aftermath_history');
+    assert.ok(tool, '工具已注册');
+    const value = await tool.execute({ since: '1h', root: 'all', limit: 5 });
+    assert.match(value.text, /根外|写操作/, 'quiet 轮不能被当成长"没有变更"');
+  });
+});
+
+test('/aftermath roots --suggest 标出哪些常用目录还没加进来', async () => {
+  await withEnv(async ({ root }) => {
+    const host = fakeHost();
+    apply(host.ctx, { roots: [root], maskHome: false });
+    const result = await host.commands[0].handler({ rawInput: 'roots --suggest' });
+    assert.equal(result.kind, 'success');
+    assert.match(result.text, /\[已加\]|\[未加\]/);
+    assert.match(result.text, /要盯着哪些地方/);
+  });
+});

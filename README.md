@@ -118,13 +118,15 @@ Plugins 页打开 dsh-aftermath 的详情，卡片里能改：
 ```yaml
 - id: dsh-aftermath
   config:
-    roots: [desktop, downloads]   # 内置标识或绝对路径，支持 "id=路径"
+    roots: [desktop, downloads, documents]   # 内置标识或绝对路径，支持 "id=路径"
     depth: 2                      # 0 = 只看根目录这一层
     exclude: ['node_modules', '~$*']
     extraRoots: ['D:\项目']
     retentionDays: 7
     maskHome: true                # 报告里把家目录打码成 ~
     intervalSlackMs: 1500         # 调用区间归因的容差（毫秒），0 = 严丝合缝
+    followCwd: true               # 当前会话的工作目录自动算进观测根（大目录只看顶层）
+    recordQuietTurns: true        # 根内没变化、但执行过写操作时，也记一条只有命令摘要的轻记录
     recordQuietTurns: true        # 根内无变化但写过命令时，留一条只含命令摘要的轻记录
 ```
 
@@ -139,6 +141,7 @@ Windows 上桌面被 OneDrive 重定向很常见。插件不读注册表，路�
 | `/aftermath report [--last N] [--since 2h] [--root desktop] [--save]` | 变更明细与归因 |
 | `/aftermath scan [--keep]` | 立刻扫描，与上次基线对比 |
 | `/aftermath roots` | 打印解析出的观测根 |
+| `/aftermath roots --suggest` | 列出常用目录哪些已经盯上、哪些还没，并给出可直接粘的 yml |
 | `/aftermath status` | 配置、存档位置、记录条数 |
 | `/aftermath doctor` | 自检：设置命名空间是否就绪、schema 从哪加载 |
 | `/aftermath help` | 帮助 |
@@ -165,6 +168,7 @@ $DSH_HOME/state/aftermath/
 ## 已知限制
 
 - 只覆盖配置的根和深度，根之外看不到磁盘状态；根外只能靠「命令文本提到过哪些路径」间接提示，命令没提到的就无从得知。
+- 观测根没扫全（条目超上限、子目录读不到）时，那个根整根跳过，报告开头直接写「本轮观测不完整」，不会把没扫到的算成删除；这轮也不更新基线。
 - `moved` 是启发式判断（同名 + 同大小 + mtime 相近），报告里会标注。
 - 归因是证据强度分级，标 `？` 就是没有证据。
 - 调用区间依赖宿主给出 `tool/result`：命令用 `Start-Process` 或 `&` 拉起后台进程时，改动会发生在区间结束之后，只能落到宽窗。
@@ -174,7 +178,7 @@ $DSH_HOME/state/aftermath/
 ## 开发
 
 ```bash
-npm test   # 112 个测试
+npm test   # 125 个测试
 ```
 
 零运行时依赖，只用 `node:` 内置模块。观测走 `ctx.on('session/event')`，`inject: ['tools']` 仅用于注册 `aftermath_history`。

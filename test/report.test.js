@@ -347,3 +347,81 @@ test('renderHistory 标出“写过命令但根内无变更”的轮次', () => 
   ]);
   assert.match(text, /0（写过 1 条命令，根外？）/);
 });
+
+test('打码有边界：Alice 不会被当成 Al 打码，命令原文里的家目录也会打掉', () => {
+  const originalUser = process.env.USERPROFILE;
+  const win = (...parts) => parts.join(String.fromCharCode(92));
+  process.env.USERPROFILE = win('C:', 'Users', 'Al');
+  try {
+    const home = win('C:', 'Users', 'Al');
+    const other = win('C:', 'Users', 'Alice', 'Desktop', 'keep.txt');
+    const text = renderTurnReport(
+      record({
+        roots: [{ id: 'desktop', path: win(home, 'Desktop'), ok: true, complete: true }],
+        changes: [],
+        calls: [{ name: 'bash', mutating: true, excerpt: `rm ${other}`, at: 1, endAt: 2 }],
+        counts: { created: 0, deleted: 0, modified: 0, moved: 0, total: 0, confidence: { certain: 0, likely: 0, window: 0, unattributed: 0 } },
+      }),
+      { symptoms: false },
+    );
+    assert.match(text, /Desktop）/, '根路径里的家目录该打码成 ~');
+    assert.ok(!text.includes(home + String.fromCharCode(92)), '不该出现未打码的家目录');
+    assert.match(text, /Alice/, 'Alice 不能被当成 Al 前缀误伤');
+  } finally {
+    if (originalUser === undefined) delete process.env.USERPROFILE;
+    else process.env.USERPROFILE = originalUser;
+  }
+});
+
+test('删除行的 mtime 列标成"删除前"，不冒充删除时刻', () => {
+  const text = renderTurnReport(
+    record({
+      changes: [
+        {
+          kind: 'deleted',
+          rootId: 'desktop',
+          root: ROOT,
+          rel: 'gone.txt',
+          before: { size: 1, mtime: Date.parse('2026-11-17T14:32:05') },
+          after: null,
+          attribution: { confidence: 'certain', how: 'exact-path', tool: 'bash', verb: 'rm' },
+        },
+      ],
+      counts: { created: 0, deleted: 1, modified: 0, moved: 0, total: 1, confidence: { certain: 1, likely: 0, window: 0, unattributed: 0 } },
+    }),
+    { maskHome: false, symptoms: false },
+  );
+  assert.match(text, /\| 删除 \| gone\.txt \| 1 B \| 删除前 14:32:05 \|/);
+  assert.match(text, /\| 变更 \| 条目 \| 大小 \| mtime \|/);
+});
+
+test('观测根不完整时报告开头就说明，不假装一切正常', () => {
+  const text = renderTurnReport(
+    record({ roots: [{ id: 'desktop', path: ROOT, ok: true, complete: false, truncated: true }] }),
+    { maskHome: false, symptoms: false },
+  );
+  assert.match(text, /本轮观测不完整/);
+  assert.match(text, /desktop/);
+});
+
+test('并行配对有歧义时健康度写出来', () => {
+  const text = renderTurnReport(
+    record({
+      changes: [
+        {
+          kind: 'created',
+          rootId: 'desktop',
+          root: ROOT,
+          rel: 'a.txt',
+          before: null,
+          after: { size: 1, mtime: 2 },
+          attribution: { confidence: 'window', how: 'call-interval', tool: 'bash', verb: 'rm' },
+        },
+      ],
+      counts: { created: 1, deleted: 0, modified: 0, moved: 0, total: 1, confidence: { certain: 0, likely: 0, window: 1, unattributed: 0 } },
+      health: { scanMs: 1, roots: 1, scanned: 5, changed: 1, listed: 1, truncated: false, ambiguousResults: 2, intervals: { calls: 2, mutating: 2, timed: 2, closed: 2, overlaps: 0, slackMs: 1500 } },
+    }),
+    { maskHome: false, symptoms: false },
+  );
+  assert.match(text, /配对歧义：2 次/);
+});

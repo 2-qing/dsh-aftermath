@@ -24,7 +24,7 @@ test('normalizeConfig 给缺失项兜底并夹取越界值', () => {
   assert.equal(cfg.maxEntries, 100);
   assert.equal(cfg.retentionDays, 1);
   assert.equal(cfg.enabled, true);
-  assert.deepEqual(cfg.roots, ['desktop', 'downloads']);
+  assert.deepEqual(cfg.roots, ['desktop', 'downloads', 'documents']);
 
   const negative = normalizeConfig({ depth: -4, maxChangesPerReport: 1 });
   assert.equal(negative.depth, 0);
@@ -73,11 +73,22 @@ test('resolveRoots 支持 id=路径 与绝对路径，并按路径去重', () =>
         extraRoots: [custom],
       }),
     );
-    assert.equal(roots.length, 2);
-    assert.equal(roots[0].id, 'desk');
-    assert.equal(roots[0].path.toLowerCase(), custom.toLowerCase());
-    assert.equal(roots[0].exists, true);
-    assert.equal(roots[1].path.toLowerCase(), path.win32.normalize(home).toLowerCase());
+    // home 已经在列，Custom\Desk 是它的子目录 → 被裁掉，只留 home
+    assert.equal(roots.length, 1);
+    assert.equal(roots[0].path.toLowerCase(), path.win32.normalize(home).toLowerCase());
+  });
+});
+
+test('resolveRoots 裁掉嵌套根，并给重复 id 加后缀', () => {
+  withTempHome((home) => {
+    const a = path.join(home, 'A');
+    const b = path.join(home, 'B');
+    fs.mkdirSync(a, { recursive: true });
+    fs.mkdirSync(b, { recursive: true });
+    const roots = resolveRoots(normalizeConfig({ roots: [`同名=${a}`, `同名=${b}`, a], extraRoots: [] }));
+    assert.equal(roots.length, 2, '重复路径去掉，两个不同目录都留');
+    assert.equal(roots[0].id, '同名');
+    assert.equal(roots[1].id, '同名2', 'id 必须唯一');
   });
 });
 

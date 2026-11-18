@@ -111,3 +111,45 @@ test('tool/result 在没有对应调用时被安静忽略', async () => {
     host.emit(session, { type: 'turn/end', time: 5000, data: { turn: 3 } });
   });
 });
+test('并行调用乱序回来时按 callId 配对，不会把结束时刻挂错', async () => {
+  await withRoot(({ root }) => {
+    const host = fakeHost();
+    apply(host.ctx, { roots: [root], maskHome: false });
+    const session = { id: 'sess-parallel' };
+    host.emit(session, { type: 'turn/start', time: 1000, data: { turn: 4 } });
+    host.emit(session, { type: 'tool/call', time: 2000, data: { callId: 'slow', name: 'bash', arguments: noise, step: 7 } });
+    host.emit(session, { type: 'tool/call', time: 2100, data: { callId: 'fast', name: 'bash', arguments: noise, step: 7 } });
+    // fast 先回来
+    host.emit(session, { type: 'tool/result', time: 2200, data: { turn: 4, step: 7, callId: 'fast' } });
+    host.emit(session, { type: 'tool/result', time: 6000, data: { turn: 4, step: 7, callId: 'slow' } });
+    fs.writeFileSync(path.join(root, 'parallel.txt'), 'p');
+    host.emit(session, { type: 'turn/end', time: 7000, data: { turn: 4 } });
+
+    const records = readTurns({ limit: 3 });
+    const record = records[0];
+    const byCall = new Map(record.calls.map((call) => [call.name + '@' + call.at, call]));
+    const slow = record.calls.find((call) => call.at === 2000);
+    const fast = record.calls.find((call) => call.at === 2100);
+    assert.equal(fast.endAt, 2200, '先回来的那条对上了自己的结束时刻');
+    assert.equal(slow.endAt, 6000);
+    assert.equal(record.health.ambiguousResults, 0, 'callId 能唯一确定时不该记歧义');
+    assert.ok(byCall.size >= 1);
+  });
+});
+
+test('并行又拿不到 callId 时记歧义，不假装配对成功', async () => {
+  await withRoot(({ root }) => {
+    const host = fakeHost();
+    apply(host.ctx, { roots: [root], maskHome: false });
+    const session = { id: 'sess-ambiguous' };
+    host.emit(session, { type: 'turn/start', time: 1000, data: { turn: 5 } });
+    host.emit(session, { type: 'tool/call', time: 2000, data: { callId: 'a', name: 'bash', arguments: noise, step: 2 } });
+    host.emit(session, { type: 'tool/call', time: 2001, data: { callId: 'b', name: 'bash', arguments: noise, step: 2 } });
+    host.emit(session, { type: 'tool/result', time: 3000, data: { turn: 5 } });
+    fs.writeFileSync(path.join(root, 'ambiguous.txt'), 'a');
+    host.emit(session, { type: 'turn/end', time: 4000, data: { turn: 5 } });
+
+    const record = readTurns({ limit: 3 })[0];
+    assert.equal(record.health.ambiguousResults, 1);
+  });
+});

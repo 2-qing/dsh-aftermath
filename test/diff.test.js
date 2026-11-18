@@ -86,3 +86,44 @@ test('indexEntries 以 rel 为键', () => {
   assert.equal(map.size, 2);
   assert.equal(map.get('b').size, 2);
 });
+
+const path = await import('node:path');
+const win = (...parts) => path.win32.join(...parts);
+const snap = (id, rootPath, extra = {}) => ({ id, root: rootPath, ok: true, complete: true, count: 0, entries: [], ...extra });
+
+test('截断的根整根跳过，不把没扫到的报成删除', () => {
+  const before = [snap('desktop', win('C:', 'A', 'Desktop'), { entries: [file('a.txt', 1, 1), file('b.txt', 1, 1)] })];
+  const after = [snap('desktop', win('C:', 'A', 'Desktop'), { complete: false, truncated: true, entries: [] })];
+  const delta = diffSnapshotPair(before, after);
+  assert.equal(delta.deleted.length, 0);
+  assert.equal(delta.skipped.length, 1);
+  assert.equal(delta.skipped[0].reason, 'truncated');
+  assert.equal(delta.roots[0].complete, false);
+});
+
+test('子目录读不到也算不完整，同样整根跳过', () => {
+  const before = [snap('desktop', win('C:', 'A', 'Desktop'), { entries: [file('a.txt', 1, 1)] })];
+  const after = [snap('desktop', win('C:', 'A', 'Desktop'), { complete: false, unreadable: 3, entries: [] })];
+  const delta = diffSnapshotPair(before, after);
+  assert.equal(delta.deleted.length, 0);
+  assert.equal(delta.skipped[0].reason, 'unreadable-subdir');
+});
+
+test('同 id 但路径变了，不能互相比对', () => {
+  const before = [snap('desktop', win('C:', 'A', 'Desktop'), { entries: [file('only-in-old.txt', 1, 1)] })];
+  const after = [snap('desktop', win('D:', 'B', 'Desktop'), { entries: [file('only-in-new.txt', 1, 1)] })];
+  const delta = diffSnapshotPair(before, after);
+  assert.equal(delta.deleted.length, 0, '不能把旧根的文件报成删除');
+  assert.equal(delta.created.length, 0, '也不能把新根的文件报成新建');
+  assert.equal(delta.skipped[0].reason, 'root-changed');
+});
+
+test('文件变目录、目录变文件都算修改而不是丢失', () => {
+  const before = [file('thing', 10, 1000)];
+  const after = [dir('thing')];
+  const delta = diffRoot(before, after);
+  assert.equal(delta.deleted.length, 0);
+  assert.equal(delta.created.length, 0);
+  assert.equal(delta.modified.length, 1);
+  assert.equal(delta.modified[0].typeChanged, true);
+});
