@@ -1,6 +1,6 @@
 # dsh-aftermath
 
-![dsh-aftermath](assets/icon-512.png)
+![dsh-aftermath](assets/icon-96.png)
 
 记录 AI 每轮对话对观测目录的文件改动。出事之后可以倒查：改了哪些文件、大概是哪条命令改的、怎么恢复。
 
