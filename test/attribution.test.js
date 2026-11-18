@@ -259,7 +259,8 @@ test('重定向到空设备不算路径证据（2>/dev/null 到处都是）', ()
   assert.deepEqual(nul.absPaths, []);
 
   const real = extractEvidence(call('bash', { command: 'node build.js > out.txt' }));
-  assert.deepEqual(real.absPaths.map((item) => item.path), ['out.txt']);
+  assert.deepEqual(real.absPaths, [], '相对目标不当绝对路径');
+  assert.deepEqual(real.relPaths.map((item) => item.name), ['out.txt'], '相对目标仍留作文件名证据');
 });
 
 test('URL 里的 s:// 不算 S: 盘，裸路径要求左侧是分隔符', () => {
@@ -268,4 +269,20 @@ test('URL 里的 s:// 不算 S: 盘，裸路径要求左侧是分隔符', () => 
 
   const cp = extractEvidence(call('bash', { command: 'cp C:/a/b.txt D:/c/d.txt' }));
   assert.deepEqual(cp.absPaths.map((item) => item.path), [path.win32.normalize('C:/a/b.txt'), path.win32.normalize('D:/c/d.txt')]);
+});
+
+test('命令里的数字、裸盘符、盘符根都不算路径证据', async () => {
+  const { extractEvidence } = await import('../lib/attribution.js');
+  const ev = (command) => extractEvidence({ callId: 'c', name: 'bash', at: 1, arguments: JSON.stringify({ command }) });
+
+  const noise = ev('dir /b C:\temp; echo 0; echo A:.; ls -la /c; cmd.exe /c exit 1');
+  assert.deepEqual(noise.absPaths, [], '0 / A:. / C: 与盘符根都不是文件路径');
+
+  const relative = ev('node build.js > out.txt');
+  assert.deepEqual(relative.absPaths, []);
+  assert.deepEqual(relative.relPaths.map((item) => item.name), ['out.txt'], '相对目标留作文件名证据');
+
+  const absolute = ev('node build.js > C:/tmp/out.txt');
+  assert.deepEqual(absolute.absPaths.map((item) => item.path), [path.win32.normalize('C:/tmp/out.txt')]);
+  assert.deepEqual(absolute.relPaths, []);
 });

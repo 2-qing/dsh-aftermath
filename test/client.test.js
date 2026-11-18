@@ -68,6 +68,7 @@ test('模块 id 与包名一致，且注册 Plugins 页的配置卡片', async (
   assert.deepEqual(exports.inject, ['locale', 'slots']);
 
   const registered = [];
+  const injected = [];
   const effects = [];
   const scope = { getSnapshot: () => ({ status: 'ready', value: {}, writable: true }), set: async () => true, subscribe: () => () => {} };
   const ctx = {
@@ -87,7 +88,7 @@ test('模块 id 与包名一致，且注册 Plugins 页的配置卡片', async (
     locale: { register: () => () => {}, bind: () => (key) => key },
     slots: {
       inject(name, factory) {
-        assert.equal(name, 'plugins.bundle.config');
+        injected.push(name);
         return factory();
       },
       register(slot, component) {
@@ -99,9 +100,19 @@ test('模块 id 与包名一致，且注册 Plugins 页的配置卡片', async (
 
   exports.apply(ctx);
 
-  assert.equal(registered.length, 1, '应该只注册一张卡片');
-  const { slot, component } = registered[0];
-  assert.equal(slot.name, 'plugins.bundle.config');
+  assert.deepEqual(injected, ['plugins.bundle.config', 'plugins.tab'], '卡片与标签页各注入一次');
+  assert.equal(registered.length, 2, '注册设置卡片 + 变更记录标签页');
+
+  const card = registered.find((item) => item.slot.name === 'plugins.bundle.config');
+  const tab = registered.find((item) => item.slot.name === 'plugins.tab');
+  assert.ok(card, '必须有设置卡片');
+  assert.ok(tab, '必须有变更记录标签页');
+  assert.equal(tab.slot.id, 'dsh-aftermath');
+  assert.equal(tab.slot.order, 10);
+  assert.equal(typeof tab.slot.label, 'function');
+  assert.equal(typeof tab.component, 'function');
+
+  const { slot, component } = card;
   assert.equal(slot.key, 'dsh-aftermath', 'key 必须是包名，设置页据此配对');
   assert.equal(slot.locale, 'aftermath');
   assert.equal(typeof component, 'function');
