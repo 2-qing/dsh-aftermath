@@ -1,0 +1,14 @@
+# 上架 dsh-market 用的条目（PR 到 awesome-dsh-plugin 仓库时，把这个文件
+# 复制成 data/plugins/2-qing__dsh-aftermath.yml，见 contributing.md：
+# 一个 PR 只加一个文件、最多 3 条、README 由脚本生成不要手改）。
+#
+# icon 指向 v0.6.2 的 tag 原文（实测 raw 返回 200，88,383 B）：
+# 换 tag 时记得同步这一行，否则市场详情页会变回默认图。
+
+url: https://github.com/2-qing/dsh-aftermath
+name: dsh-aftermath
+category: session
+description:
+  en: "Logs what each AI turn changed inside the folders you point it at — which files were created, deleted or modified, and which tool call most likely did it. Never reads file contents."
+  zh: "记录每一轮对话在观测目录里改了什么：哪些文件被新建、删除或修改，大致是哪次工具调用干的。不读文件内容。"
+icon: https://raw.githubusercontent.com/2-qing/dsh-aftermath/v0.6.2/assets/icon-512.png
