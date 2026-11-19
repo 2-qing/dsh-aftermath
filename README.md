@@ -186,7 +186,7 @@ $DSH_HOME/state/aftermath/
 └── reports/                   --save 的报告
 ```
 
-只记路径、大小、mtime，不读文件内容、不存正文；命令原文只保留 ≤180 字符的片段用于归因说明，命令里出现的绝对路径最多留 12 条（每条 ≤320 字符）。不启子进程，不联网，恢复命令只打印不执行。记录按 `retentionDays` 自动清理。
+只记路径、大小、mtime，不读文件内容、不存正文；命令原文只保留 ≤180 字符的片段用于归因说明，命令里出现的绝对路径最多留 12 条（每条 ≤320 字符）。命令摘要落盘前会跑一遍脱敏，把 `Authorization:` / `Bearer` / `password=` / `--token=` / `ghp_` / `AKIA` / `sk-` 这类常见密钥模式的值打码成 `[redacted]`——这是卫生措施，不是安全边界，会话日志里本来就有完整命令。不启子进程，不联网，恢复命令只打印不执行。记录按 `retentionDays` 自动清理。
 
 记录格式 `v: 2`。每条带 `kind`：`changes`（有变更）或 `quiet`（根内无变化但执行过写操作，只含命令摘要，不含变更表）。
 
@@ -195,6 +195,8 @@ $DSH_HOME/state/aftermath/
 `dsh.capabilities` 声明 `fs:read`、`tools:register`、`network:ingress`；`dsh.labels` 声明 `remote-access`。
 
 `network:ingress` 对应标签页那条只读路由：插件在运行时通过 `ctx.inject(['webServer'])` 动态注册 `GET /aftermath/recent`，dsh-standards 的静态检查看不到动态注册，会报一条 `C-11.5` 警告，属预期，声明是真实的。路由只接 GET/HEAD，只返回已落盘的记录（路径已按 `maskHome` 打码），没有写入或删除接口。
+
+静态检查还会报一条 `C-11.2`（发现了 egress 触发点却未声明 `network:egress`）：它把客户端 `fetch('/aftermath/recent')` 当成了出网请求，但那是一次同源请求——GUI 和服务跑在同一个 loopback 端口，面板取的是本机自己注册的路由，不发往任何外部地址，所以不声明 `network:egress` 是对的。
 
 ## 已知限制
 
@@ -209,7 +211,7 @@ $DSH_HOME/state/aftermath/
 ## 开发
 
 ```bash
-npm test   # 139 个测试
+npm test   # 142 个测试
 ```
 
 零运行时依赖，只用 `node:` 内置模块。观测走 `ctx.on('session/event')`，`inject: ['tools']` 仅用于注册 `aftermath_history`。

@@ -7,6 +7,7 @@ import {
   summarizeConfidence,
   normalizePath,
   globToRegex,
+  redactSecrets,
 } from '../lib/attribution.js';
 
 const ROOT = 'C:\\Users\\x\\Desktop';
@@ -285,4 +286,38 @@ test('命令里的数字、裸盘符、盘符根都不算路径证据', async ()
   const absolute = ev('node build.js > C:/tmp/out.txt');
   assert.deepEqual(absolute.absPaths.map((item) => item.path), [path.win32.normalize('C:/tmp/out.txt')]);
   assert.deepEqual(absolute.relPaths, []);
+});
+
+test('~ 后不跟分隔符的写法不算路径（~$VAR / ~user 会被 homeDir() 拼错）', () => {
+  const ev = (command) => extractEvidence({ callId: 'c', name: 'bash', at: 1, arguments: JSON.stringify({ command }) });
+
+  const tildeVar = ev('echo ~$HOME/.config 2>/dev/null');
+  assert.deepEqual(tildeVar.absPaths, [], '~$VAR 不是可解析路径');
+
+  const tildeUser = ev('ls ~alice/Documents');
+  assert.deepEqual(tildeUser.absPaths, [], '~user 不是本机家目录');
+
+  const tildeHome = ev('ls ~/Documents');
+  assert.ok(tildeHome.absPaths.length > 0, '~/path 仍是合法的家目录写法');
+  assert.ok(tildeHome.absPaths.some((item) => item.lower.includes('documents')), '~/Documents 解析进家目录');
+});
+
+test('redactSecrets 把密钥值打码、保留键名与命令其余部分', () => {
+  const auth = redactSecrets('curl -H "Authorization: Bearer ghp_abcdefghijklmnop12345" https://api.example.com');
+  assert.ok(!auth.includes('ghp_abcdefghijklmnop12345'), 'Bearer token 被打码');
+  assert.ok(auth.includes('[redacted]'), '有打码占位');
+  assert.ok(auth.includes('curl') && auth.includes('https://api.example.com'), '命令其余部分保留');
+
+  const pw = redactSecrets('net use X \\\\server\\share /password:secret123');
+  assert.ok(!pw.includes('secret123'), 'password 值被打码');
+  assert.ok(pw.includes('/password'), '键名保留');
+
+  const tokenEq = redactSecrets('gh api --token=gho_123456789012345678');
+  assert.ok(!tokenEq.includes('gho_123456789012345678'), '--token= 值被打码');
+
+  const sk = redactSecrets('api_key=sk-abcdefghijklmnopqrstuvwxyz123');
+  assert.ok(!sk.includes('sk-abcdefghijklmnopqrstuvwxyz123'), 'sk- 密钥被打码');
+
+  const clean = redactSecrets('pwd && ls -la C:/tmp');
+  assert.equal(clean, 'pwd && ls -la C:/tmp', '裸 pwd 命令不被误伤');
 });

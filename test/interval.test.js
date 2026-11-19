@@ -111,6 +111,19 @@ test('analyzeIntervals 统计区间可用性与重叠', () => {
   assert.equal(stats.closed, 2, '只有两条拿到了结束时刻');
   assert.equal(stats.overlaps, 1);
   assert.equal(stats.slackMs, 0);
+  assert.deepEqual(stats.unknownTools, [], 'bash 是脚本宿主、read 是只读表，不算未知工具');
+});
+
+test('analyzeIntervals 把不在已知名单里的工具名列出来', () => {
+  const stats = analyzeIntervals(
+    [
+      { callId: 'a', name: 'tool-special-write', arguments: JSON.stringify({ path: 'C:/a.txt' }), at: 1000, endAt: 1200 },
+      { callId: 'b', name: 'write', arguments: JSON.stringify({ file_path: 'C:/b.txt' }), at: 2000, endAt: 2200 },
+      { callId: 'c', name: 'browser_edit', arguments: JSON.stringify({ selector: 'x' }), at: 3000, endAt: 3200 },
+    ],
+    { slackMs: 0, turnEndAt: 4000 },
+  );
+  assert.deepEqual(stats.unknownTools, ['tool-special-write', 'browser_edit'], 'write 在写表里，其余两个是未知工具');
 });
 
 test('默认容差是 1500ms', () => {
