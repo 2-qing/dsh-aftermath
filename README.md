@@ -7,6 +7,8 @@
 
 记录每轮对话里观测目录的文件变更：哪些被新建、删除、修改，大概是哪次工具调用改的。出问题时用它倒查。
 
+它针对 Windows 上 DSH 的沙箱缺口：Linux / macOS 有 bwrap、Seatbelt 这类进程级隔离，Windows 只有更弱的 ACL 受限令牌（restricted-token），受限后端不可用时命令直接 fail-closed；用户为让 agent 能干得动活，常常切到 danger-full-access 完整权限——于是 agent 的 bash / PowerShell 命令带着宿主进程的全部文件权限直接落在真实磁盘上，一次误删、写错路径的覆盖、`rm -rf` 会立刻落地且不可逆。本插件把观测放到文件系统层，每轮对观测目录快照做差，缺沙箱也能事后倒查：哪些文件被动过、大概落到哪次调用头上。
+
 DSH 插件。零依赖，不联网，不读文件内容。
 
 ```bash
