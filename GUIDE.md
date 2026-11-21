@@ -128,7 +128,7 @@ Plugins 页面**上方的标签栏**里点「变更记录」（在「已安装�
 
 ---
 
-## 5. 命令速查（只有 6 条）
+## 5. 命令速查
 
 | 你想干嘛 | 打这个 |
 | --- | --- |
@@ -141,6 +141,9 @@ Plugins 页面**上方的标签栏**里点「变更记录」（在「已安装�
 | 看它在盯哪些目录 | `/aftermath roots` |
 | 看它在不在跑、配置对不对 | `/aftermath status` |
 | 设置页出问题时自检 | `/aftermath doctor` |
+| 把这天的记录钉住，别被自动清理 | `/aftermath pin last` |
+| 看钉住了哪些天 | `/aftermath pins` |
+| 解除钉住 | `/aftermath unpin last`（或 `unpin --all`） |
 
 `--since` 后面可以写 `30m`（30 分钟）、`2h`（2 小时）、`3d`（3 天）。
 

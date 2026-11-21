@@ -375,3 +375,46 @@ test('面板路由：注册 /aftermath/recent 并返回可解析的 JSON', async
     assert.equal(payload.totals.todayTurns >= 1, true);
   });
 });
+
+test('pin / pins / unpin 可用，status 报完整性、体积与钉住', async () => {
+  await withEnv(async ({ root }) => {
+    const host = fakeHost();
+    apply(host.ctx, { roots: [root], maskHome: false });
+    const session = { id: 'sess-pin' };
+    host.emit(session, { type: 'turn/start', time: Date.now(), data: { turn: 1 } });
+    fs.writeFileSync(path.join(root, 'pin-a.txt'), 'a');
+    host.emit(session, { type: 'turn/end', time: Date.now(), data: { turn: 1 } });
+
+    const command = host.commands[0];
+    const pin = await command.handler({ rawInput: 'pin last' });
+    assert.match(pin.text, /已钉住/);
+    const pins = await command.handler({ rawInput: 'pins' });
+    assert.match(pins.text, /钉住的日期/);
+    assert.match(pins.text, /1 轮/);
+    const status = await command.handler({ rawInput: 'status' });
+    assert.match(status.text, /记录完整性：正常/);
+    assert.match(status.text, /存档体积：/);
+    assert.match(status.text, /钉住：/);
+    const unpin = await command.handler({ rawInput: 'unpin --all' });
+    assert.match(unpin.text, /已解除全部钉住/);
+  });
+});
+
+test('记录里混进坏行时，report 明说没读全', async () => {
+  await withEnv(async ({ root }) => {
+    const host = fakeHost();
+    apply(host.ctx, { roots: [root], maskHome: false });
+    const session = { id: 'sess-corrupt' };
+    host.emit(session, { type: 'turn/start', time: Date.now(), data: { turn: 2 } });
+    fs.writeFileSync(path.join(root, 'c.txt'), 'c');
+    host.emit(session, { type: 'turn/end', time: Date.now(), data: { turn: 2 } });
+
+    const day = new Date().toISOString().slice(0, 10);
+    const file = path.join(process.env.DSH_HOME, 'state', 'aftermath', 'turns', `${day}.ndjson`);
+    fs.appendFileSync(file, '{ 坏行\n', 'utf8');
+
+    const result = await host.commands[0].handler({ rawInput: 'report --last 1' });
+    assert.match(result.text, /记录没读全/);
+    assert.match(result.text, /跳过 1 行损坏记录/);
+  });
+});

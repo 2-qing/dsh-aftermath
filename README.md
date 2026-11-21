@@ -186,7 +186,10 @@ Windows 上桌面被 OneDrive 重定向很常见。插件不读注册表，路�
 | `/aftermath roots` | 打印解析出的观测根 |
 | `/aftermath roots --suggest` | 列出常用目录哪些已经盯上、哪些还没，并给出可直接粘的 yml |
 | `/aftermath roots --add <路径>` / `--remove <路径>` | 预览加/减之后会变成什么样子，并给出可粘贴的 yml（不替你改配置） |
-| `/aftermath status` | 配置、存档位置、记录条数 |
+| `/aftermath status` | 配置、存档位置、记录条数、存档体积、记录完整性、钉住了哪些天 |
+| `/aftermath pin [2026-11-18\|last]` | 钉住某天的记录：超过 `retentionDays` 也不会被清理 |
+| `/aftermath unpin [2026-11-18\|last\|--all]` | 解除钉住 |
+| `/aftermath pins` | 现在钉住了哪些天、各占多少体积 |
 | `/aftermath doctor` | 自检：设置命名空间是否就绪、schema 从哪加载 |
 | `/aftermath help` | 帮助 |
 
@@ -205,7 +208,7 @@ $DSH_HOME/state/aftermath/
 └── reports/                   --save 的报告
 ```
 
-只记路径、大小、mtime，不读文件内容、不存正文；命令原文只保留 ≤180 字符的片段用于归因说明，命令里出现的绝对路径最多留 12 条（每条 ≤320 字符）。命令摘要落盘前会跑一遍脱敏，把 `Authorization:` / `Bearer` / `password=` / `--token=` / `ghp_` / `AKIA` / `sk-` 这类常见密钥模式的值打码成 `[redacted]`——这是卫生措施，不是安全边界，会话日志里本来就有完整命令。不启子进程，不联网，恢复命令只打印不执行。记录按 `retentionDays` 自动清理。
+只记路径、大小、mtime，不读文件内容、不存正文；敏感文件名（`.env*`、`*.pem`、`*.key`、`*.kdbx`、`id_rsa`、`kubeconfig` 等）与 `.ssh` / `.aws` / `.gnupg` 这类目录之后的路径，在报告、面板和 agent 工具返回里一律打成 `***`——路径本身也是信息，不该到处散布；命令原文只保留 ≤180 字符的片段用于归因说明，命令里出现的绝对路径最多留 12 条（每条 ≤320 字符）。命令摘要落盘前会跑一遍脱敏，把 `Authorization:` / `Bearer` / `password=` / `--token=` / `ghp_` / `AKIA` / `sk-` 这类常见密钥模式的值打码成 `[redacted]`——这是卫生措施，不是安全边界，会话日志里本来就有完整命令。不启子进程，不联网，恢复命令只打印不执行。记录按 `retentionDays` 自动清理（钉住的日期除外）。读不出来的坏行不会悄悄消失：会写进 `state/aftermath/corrupt.log`，并在 `status` 与报告里明说「记录没读全」。存档超过 `storageWarnMB`（默认 200 MB）只提醒，不自动删。
 
 记录格式 `v: 2`。每条带 `kind`：`changes`（有变更）或 `quiet`（根内无变化但执行过写操作，只含命令摘要，不含变更表）。
 
@@ -230,7 +233,7 @@ $DSH_HOME/state/aftermath/
 ## 开发
 
 ```bash
-npm test   # 142 个测试
+npm test   # 154 个测试
 ```
 
 零运行时依赖，只用 `node:` 内置模块。观测走 `ctx.on('session/event')`，`inject: ['tools']` 仅用于注册 `aftermath_history`。

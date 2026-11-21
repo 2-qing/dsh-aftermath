@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import path from 'node:path';
 import { renderTurnReport, renderChatLine, renderHistory } from '../lib/report.js';
 import { detectSymptoms } from '../lib/symptoms.js';
 
@@ -447,4 +448,54 @@ test('根外清单里丢掉空设备（旧记录里已经存了 \dev\null）', (
   );
   assert.match(text, /D:\/tools\/x\.log/);
   assert.doesNotMatch(text, /dev\\null|\dev\null/);
+});
+
+test('敏感文件名与敏感目录一律打码，与 maskHome 无关', () => {
+  const home = process.env.USERPROFILE || process.env.HOME || 'C:/Users/me';
+  const proj = path.win32.join(home, 'proj');
+  const mk = (rel) => ({
+    kind: 'modified',
+    rootId: 'desktop',
+    root: proj,
+    rel,
+    abs: path.win32.join(proj, rel),
+    before: { size: 1, mtime: 1 },
+    after: { size: 2, mtime: 2 },
+    attribution: { confidence: 'certain', how: 'exact-path', tool: 'bash', verb: 'tee', excerpt: 'tee x' },
+  });
+  const text = renderTurnReport(
+    record({ changes: [mk('.env.production'), mk('server.pem'), mk('.ssh/id_rsa')] }),
+    { maskHome: false },
+  );
+  assert.doesNotMatch(text, /\.env\.production/);
+  assert.doesNotMatch(text, /server\.pem/);
+  assert.doesNotMatch(text, /id_rsa/);
+  assert.match(text, /\*\*\*/);
+});
+
+test('超出预算时报告开头就说明，而不是只藏在健康度里', () => {
+  const text = renderTurnReport(
+    record({
+      truncated: true,
+      changes: [
+        {
+          kind: 'created',
+          rootId: 'desktop',
+          root: ROOT,
+          rel: 'a.txt',
+          before: null,
+          after: { size: 1, mtime: 2 },
+          attribution: { confidence: 'certain', how: 'exact-path', tool: 'write', verb: null, excerpt: null },
+        },
+      ],
+    }),
+    { maskHome: false, maxEntries: 100 },
+  );
+  assert.match(text, /本轮超出预算\*\*（上限 100 条）/);
+  assert.match(text, /按前 1 条列出/);
+});
+
+test('坏记录数写进健康度，而不是悄悄跳过', () => {
+  const text = renderTurnReport(record({ changes: [] }), { maskHome: false, corrupt: 2 });
+  assert.match(text, /跳过 2 行损坏记录/);
 });

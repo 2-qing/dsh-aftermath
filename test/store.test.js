@@ -14,6 +14,9 @@ import {
   ensureDirs,
   turnsDir,
   dayKey,
+  readPins,
+  writePins,
+  diskUsage,
 } from '../lib/store.js';
 
 function withTempHome(fn) {
@@ -94,5 +97,56 @@ test('baseline 往返；损坏文件返回 null', () => {
 
     fs.writeFileSync(path.join(stateDir(), 'baseline.json'), '{ broken', 'utf8');
     assert.equal(loadBaseline(), null);
+  });
+});
+
+test('坏行不只跳过，还会计数并写 corrupt.log', () => {
+  withTempHome(() => {
+    ensureDirs();
+    appendTurn({ v: 2, at: Date.now(), turn: 3, changes: [] });
+    fs.appendFileSync(path.join(turnsDir(), `${dayKey()}.ndjson`), '{ 这不合法\n', 'utf8');
+    const stats = {};
+    const records = readTurns({ limit: 10, stats });
+    assert.equal(records.length, 1);
+    assert.equal(stats.corruptLines, 1);
+    const log = fs.readFileSync(path.join(stateDir(), 'corrupt.log'), 'utf8');
+    assert.match(log, /"line":2/);
+    assert.match(log, /error/);
+  });
+});
+
+test('钉住的日期不会被 pruneTurns 删掉', () => {
+  withTempHome(() => {
+    ensureDirs();
+    const old = new Date(Date.now() - 30 * 86400000);
+    const oldName = `${dayKey(old)}.ndjson`;
+    fs.writeFileSync(path.join(turnsDir(), oldName), '{"v":1,"at":1,"turn":1}\n', 'utf8');
+    appendTurn({ v: 2, at: Date.now(), turn: 9, changes: [] });
+    assert.equal(pruneTurns(7, { days: [dayKey(old)] }), 0);
+    assert.equal(fs.existsSync(path.join(turnsDir(), oldName)), true);
+    assert.equal(pruneTurns(7, { days: [] }), 1);
+  });
+});
+
+test('pins 往返；坏文件当成没钉任何东西', () => {
+  withTempHome(() => {
+    ensureDirs();
+    assert.deepEqual(readPins(), { days: [] });
+    assert.equal(writePins({ days: ['2026-11-18', 'bad', '2026-11-18'] }), true);
+    assert.deepEqual(readPins(), { days: ['2026-11-18'] });
+    fs.writeFileSync(path.join(stateDir(), 'pins.json'), 'not json', 'utf8');
+    assert.deepEqual(readPins(), { days: [] });
+  });
+});
+
+test('diskUsage 算得出体积、文件数与日期范围', () => {
+  withTempHome(() => {
+    ensureDirs();
+    appendTurn({ v: 2, at: Date.now(), turn: 1, changes: [] });
+    const usage = diskUsage();
+    assert.ok(usage.bytes > 0);
+    assert.ok(usage.files >= 1);
+    assert.equal(usage.newest, dayKey());
+    assert.ok(Array.isArray(usage.days) && usage.days.length >= 1);
   });
 });

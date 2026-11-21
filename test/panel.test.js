@@ -100,3 +100,45 @@ test('面板路由常量与响应头', () => {
   assert.equal(PANEL_HEADERS['cache-control'], 'no-store');
   assert.equal(PANEL_HEADERS['x-content-type-options'], 'nosniff');
 });
+test('超出预算的轮次与存档体积都出现在 payload 里', () => {
+  const payload = buildPanelPayload({
+    records: [record({ truncated: true })],
+    roots: [{ id: 'desktop', path: win(HOME, 'Desktop'), exists: true }],
+    config: { maskHome: true },
+    storage: { bytes: 300 * 1024 * 1024, files: 12, oldest: '2026-11-01', newest: '2026-11-21', warnMB: 200, over: true },
+  });
+  assert.equal(payload.turns[0].truncated, true);
+  assert.equal(payload.storage.over, true);
+  assert.equal(payload.storage.warnMB, 200);
+  assert.equal(payload.storage.files, 12);
+});
+
+test('没有 storage 输入时 payload 里是 null，面板不会崩', () => {
+  const payload = buildPanelPayload({ records: [record()], roots: [], config: {} });
+  assert.equal(payload.storage, null);
+  assert.equal(payload.turns[0].truncated, false);
+});
+
+test('相对路径里的敏感文件名也打码', () => {
+  const payload = buildPanelPayload({
+    records: [
+      record({
+        changes: [
+          {
+            kind: 'modified',
+            root: win(HOME, 'proj'),
+            rel: '.env.production',
+            before: { size: 1, mtime: 1 },
+            after: { size: 2, mtime: 2 },
+            attribution: { confidence: 'certain', how: 'exact-path', tool: 'bash', verb: 'tee' },
+          },
+        ],
+      }),
+    ],
+    roots: [],
+    config: { maskHome: true },
+  });
+  const change = payload.turns[0].changes[0];
+  assert.equal(change.rel, '***');
+  assert.doesNotMatch(change.path, /\.env\.production/);
+});
