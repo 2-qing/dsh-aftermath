@@ -30,7 +30,7 @@ dsh plugin --profile desktop add dsh-aftermath
 
 1. 打开 DSH → 左侧 **Plugins**（插件）
 2. 右上 **添加插件 / Add plugin** → 选 **本地目录**
-3. 选到 `D:\dsh-workspace\aftermath`
+3. 选到你下载后解压出来的插件目录（里面应当有 `lib/` 和 `package.json`）
 4. 装好后**重启一次 DSH**
 5. 回到 Plugins → 点开 **dsh-aftermath** → 能看到一张「文件变更记录」卡片，说明装好了
 

@@ -1,6 +1,6 @@
 {
   "name": "dsh-aftermath",
-  "version": "0.6.5",
+  "version": "0.7.0",
   "description": "记录每轮对话中观测目录的文件变更，事后可倒查改了什么、出自哪条命令。",
   "type": "module",
   "main": "lib/index.js",

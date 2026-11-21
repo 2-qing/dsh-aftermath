@@ -418,3 +418,38 @@ test('记录里混进坏行时，report 明说没读全', async () => {
     assert.match(result.text, /跳过 1 行损坏记录/);
   });
 });
+
+test('/aftermath report --turn N 打开任意旧轮次', async () => {
+  await withEnv(async ({ root }) => {
+    const host = fakeHost();
+    apply(host.ctx, { roots: [root], maskHome: false });
+    const session = { id: 'sess-turn' };
+    host.emit(session, { type: 'turn/start', time: Date.now(), data: { turn: 1 } });
+    fs.writeFileSync(path.join(root, 'turn1.txt'), '1');
+    host.emit(session, { type: 'turn/end', time: Date.now(), data: { turn: 1 } });
+
+    host.emit(session, { type: 'turn/start', time: Date.now(), data: { turn: 2 } });
+    fs.writeFileSync(path.join(root, 'turn2.txt'), '2');
+    host.emit(session, { type: 'turn/end', time: Date.now(), data: { turn: 2 } });
+
+    const result = await host.commands[0].handler({ rawInput: 'report --turn 1' });
+    assert.equal(result.kind, 'success');
+    assert.match(result.text, /turn1\.txt/);
+    assert.doesNotMatch(result.text, /turn2\.txt/);
+  });
+});
+
+test('/aftermath report --turn 999 返回明确错误而非空表', async () => {
+  await withEnv(async ({ root }) => {
+    const host = fakeHost();
+    apply(host.ctx, { roots: [root], maskHome: false });
+    const session = { id: 'sess-missing-turn' };
+    host.emit(session, { type: 'turn/start', time: Date.now(), data: { turn: 1 } });
+    fs.writeFileSync(path.join(root, 'x.txt'), 'x');
+    host.emit(session, { type: 'turn/end', time: Date.now(), data: { turn: 1 } });
+
+    const result = await host.commands[0].handler({ rawInput: 'report --turn 999' });
+    assert.equal(result.kind, 'success');
+    assert.match(result.text, /没有第 999 轮/);
+  });
+});

@@ -17,6 +17,8 @@ import {
   readPins,
   writePins,
   diskUsage,
+  readMeta,
+  writeMeta,
 } from '../lib/store.js';
 
 function withTempHome(fn) {
@@ -148,5 +150,16 @@ test('diskUsage 算得出体积、文件数与日期范围', () => {
     assert.ok(usage.files >= 1);
     assert.equal(usage.newest, dayKey());
     assert.ok(Array.isArray(usage.days) && usage.days.length >= 1);
+  });
+});
+
+test('readMeta / writeMeta 往返；坏文件当成从没跑过', () => {
+  withTempHome(() => {
+    ensureDirs();
+    assert.deepEqual(readMeta(), { turnsTotal: 0, turnsToday: 0, todayKey: null, lastTurnAt: null });
+    assert.equal(writeMeta({ turnsTotal: 5, turnsToday: 3, todayKey: dayKey(), lastTurnAt: 123 }), true);
+    assert.deepEqual(readMeta(), { turnsTotal: 5, turnsToday: 3, todayKey: dayKey(), lastTurnAt: 123 });
+    fs.writeFileSync(path.join(stateDir(), 'meta.json'), 'not json', 'utf8');
+    assert.deepEqual(readMeta(), { turnsTotal: 0, turnsToday: 0, todayKey: null, lastTurnAt: null });
   });
 });

@@ -142,3 +142,32 @@ test('相对路径里的敏感文件名也打码', () => {
   assert.equal(change.rel, '***');
   assert.doesNotMatch(change.path, /\.env\.production/);
 });
+
+test('观测不完整的轮次：incomplete 与 skipped 进 payload，供面板渲染警示', () => {
+  const payload = buildPanelPayload({
+    records: [
+      record({
+        roots: [
+          { id: 'desktop', path: win(HOME, 'Desktop'), ok: false, complete: false },
+        ],
+        skipped: [{ id: 'downloads', reason: 'unreadable-subdir' }],
+      }),
+    ],
+    roots: [{ id: 'desktop', path: win(HOME, 'Desktop'), exists: true }],
+    config: { maskHome: false },
+  });
+  assert.equal(payload.turns[0].incomplete, true);
+  assert.equal(payload.turns[0].skipped.length, 1);
+  assert.equal(payload.turns[0].skipped[0].reason, 'unreadable-subdir');
+});
+
+test('meta 计数器进 payload：纯只读回合也能区分「跑过但没明细」', () => {
+  const payload = buildPanelPayload({
+    records: [],
+    roots: [{ id: 'desktop', path: win(HOME, 'Desktop'), exists: true }],
+    config: { enabled: true },
+    meta: { turnsTotal: 5, turnsToday: 3, todayKey: '2026-11-21', lastTurnAt: Date.parse('2026-11-21T10:00:00') },
+  });
+  assert.equal(payload.meta.turnsToday, 3);
+  assert.equal(payload.meta.turnsTotal, 5);
+});
