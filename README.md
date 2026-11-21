@@ -103,7 +103,19 @@ DSH 插件。零依赖，不联网，不读文件内容。
 
 ## 安装
 
-**Plugins → Add plugin → 选这个目录**。要求 DSH `>=0.2.2-0 <0.3.0`、Node `>=22.12.0`。
+三种方式，任选一种：
+
+```bash
+# 从 npm 装（推荐）
+dsh plugin --profile <你的 profile> add dsh-aftermath
+
+# 或从 GitHub 仓库装
+dsh plugin --profile <你的 profile> add github:2-qing/dsh-aftermath
+```
+
+**Plugins → Add plugin → 选这个目录**也行。
+
+要求 DSH `>=0.2.2-0 <0.3.0`、Node `>=22.12.0`。
 
 ## 设置
 
