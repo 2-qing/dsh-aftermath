@@ -126,7 +126,7 @@ dsh plugin --profile <你的 profile> add github:2-qing/dsh-aftermath
 
 ## 设置
 
-Plugins 页打开 dsh-aftermath 的详情，卡片里能改：总开关、观测目录（一行一个）、递归深度、保留天数、路径打码。总开关点一下即时写入；其余几项改完点保存。保存是逐字段写入的：某个字段被宿主拒绝就停在那一条并显示失败。保存后立即生效，不用重启。
+Plugins 页打开 dsh-aftermath 的详情，卡片里能改：总开关、观测目录（一行一个）、递归深度、保留天数、路径打码、是否把当前会话工作目录也算进去（followCwd）、根内没变化但执行过写操作时是否留轻记录（recordQuietTurns）。总开关点一下即时写入；其余几项改完点保存。保存是逐字段写入的：某个字段被宿主拒绝就停在那一条并显示失败。保存后立即生效，不用重启。
 
 卡片只剩总开关、没有其它字段时，多半是没加载到设置 schema（`link:` 安装、插件目录和依赖不在同一个盘时常见）。先跑 `/aftermath doctor`，它会打印 Config 是否导出、schema 从哪加载、宿主给本插件建的命名空间在不在；每次启动也会把同一份自检写到 `$DSH_HOME/state/aftermath/settings-probe.json`。这种情况先用下面的 yml 改配置。
 
@@ -181,7 +181,7 @@ Windows 上桌面被 OneDrive 重定向很常见。插件不读注册表，路�
 
 | 命令 | 作用 |
 | --- | --- |
-| `/aftermath report [--last N] [--since 2h] [--turn N [--session x]] [--root desktop] [--save]` | 变更明细与归因 |
+| `/aftermath report [--last N] [--since 2h] [--turn N [--session x]] [--root desktop] [--include-read] [--save]` | 变更明细与归因 |
 | `/aftermath scan [--keep]` | 立刻扫描，与上次基线对比 |
 | `/aftermath roots` | 打印解析出的观测根 |
 | `/aftermath roots --suggest` | 列出常用目录哪些已经盯上、哪些还没，并给出可直接粘的 yml |
@@ -193,7 +193,7 @@ Windows 上桌面被 OneDrive 重定向很常见。插件不读注册表，路�
 | `/aftermath doctor` | 自检：设置命名空间是否就绪、schema 从哪加载 |
 | `/aftermath help` | 帮助 |
 
-`--save` 把完整报告写到 `$DSH_HOME/state/aftermath/reports/`。
+`--save` 把完整报告写到 `$DSH_HOME/state/aftermath/reports/`。`--include-read` 让「命令提到、但不在观测根内的路径」一节也列出只读命令（`ls` / `cat`）提到的路径；默认只列可能改动文件的写调用。
 
 ## 给 agent 的工具
 
@@ -214,6 +214,10 @@ $DSH_HOME/state/aftermath/
 
 记录格式 `v: 2`。每条带 `kind`：`changes`（有变更）或 `quiet`（根内无变化但执行过写操作，只含命令摘要，不含变更表）。
 
+### 回收站可恢复标注
+
+被删的文件如果还在回收站，报告和面板会在那条删除后标一个 `♻`（可恢复）并写出原路径；明确不在回收站标 `✗`，回收站读不到标 `?`。判定只读 `$Recycle.Bin\<SID>\$I*` 元数据（版本 / 大小 / 删除时刻 / 原路径），做「路径一致 + 大小一致 + 删除时刻落在本轮」三重匹配——只 `fs:read`，不碰 `$R` 数据文件、不恢复、不删除。旧记录（0.7.0 之前落盘的）没有这个字段，不会显示标记。
+
 ### 声明了哪些能力
 
 `dsh.capabilities` 声明 `fs:read`、`tools:register`、`network:ingress`；`dsh.labels` 声明 `remote-access`。
@@ -231,11 +235,12 @@ $DSH_HOME/state/aftermath/
 - 调用区间依赖宿主给出 `tool/result`：命令用 `Start-Process` 或 `&` 拉起后台进程时，改动会发生在区间结束之后，只能落到宽窗。
 - 跨进程、跨会话的手动改动只能落进「时间窗内」或「无法归因」。
 - 不自动还原：只存路径不存内容，还原是 rollback 类插件的事。
+- 回收站标注只在删除落盘的那一轮判定；之后又清空/还原了回收站，记录里的标记不会跟着变。
 
 ## 开发
 
 ```bash
-npm test   # 160 个测试
+npm test   # 166 个测试
 ```
 
 零运行时依赖，只用 `node:` 内置模块。观测走 `ctx.on('session/event')`，`inject: ['tools']` 仅用于注册 `aftermath_history`。

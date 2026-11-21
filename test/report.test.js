@@ -340,6 +340,20 @@ test('根内路径不进“根外”清单，根外路径去重并计数', () =>
   assert.match(outside, /x\.log` ×2/);
 });
 
+test('根外清单默认只列写调用，加 includeRead 才列全部', () => {
+  const calls = [
+    { name: 'bash', verb: 'rm', mutating: true, excerpt: 'rm D:/write.txt', at: 1, endAt: 2, paths: ['D:/write.txt'] },
+    { name: 'bash', verb: 'ls', mutating: false, excerpt: 'ls D:/read-only', at: 3, endAt: 4, paths: ['D:/read-only'] },
+  ];
+  const defaultText = renderTurnReport(record({ calls }), { maskHome: false, symptoms: false });
+  assert.match(defaultText, /write\.txt/);
+  assert.doesNotMatch(defaultText, /read-only/);
+
+  const allText = renderTurnReport(record({ calls }), { maskHome: false, symptoms: false, includeRead: true });
+  assert.match(allText, /write\.txt/);
+  assert.match(allText, /read-only/);
+});
+
 test('renderHistory 标出“写过命令但根内无变更”的轮次', () => {
   const text = renderHistory([
     record({
@@ -498,4 +512,20 @@ test('超出预算时报告开头就说明，而不是只藏在健康度里', ()
 test('坏记录数写进健康度，而不是悄悄跳过', () => {
   const text = renderTurnReport(record({ changes: [] }), { maskHome: false, corrupt: 2 });
   assert.match(text, /跳过 2 行损坏记录/);
+});
+
+test('被删条目带回收站标注：表格打标 + 图例写出三态', () => {
+  const text = renderTurnReport(
+    record({
+      changes: [
+        { kind: 'deleted', rootId: 'desktop', root: ROOT, rel: 'a.txt', before: { size: 42, mtime: 1 }, after: null, attribution: { confidence: 'certain', how: 'exact-path', tool: 'bash', verb: 'rm' }, recycle: { status: 'restorable' } },
+        { kind: 'deleted', rootId: 'desktop', root: ROOT, rel: 'gone.txt', before: { size: 9, mtime: 2 }, after: null, attribution: { confidence: 'window', how: 'turn-window', tool: null, verb: null }, recycle: { status: 'not-in-recycle' } },
+      ],
+    }),
+    { maskHome: false, symptoms: false },
+  );
+  assert.match(text, /删除 ♻/);
+  assert.match(text, /删除 ✗/);
+  assert.match(text, /回收站可恢复/);
+  assert.match(text, /不在回收站/);
 });
