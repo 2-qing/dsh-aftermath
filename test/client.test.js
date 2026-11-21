@@ -55,6 +55,18 @@ test('client.js 不 import 任何 Harness 客户端包（只用注入的 react �
   assert.ok(source.includes('var(--dsw-alias-'), '样式必须走主题 token');
 });
 
+test('主按钮的文字用 label-primary-inverted，不能用 label-on-color（深色主题下是白底白字）', () => {
+  const source = fs.readFileSync(path.join(root, 'lib/client.js'), 'utf8');
+  const rule = /\.am-btn-primary\{([^}]*)\}/.exec(source);
+  assert.ok(rule, '应该有一条 .am-btn-primary 规则');
+  const body = rule[1];
+  assert.ok(body.includes('background:var(--dsw-alias-brand-primary)'), '底色仍是品牌色');
+  assert.ok(body.includes('color:var(--dsw-alias-label-primary-inverted)'), '文字色必须跟随底色反相');
+  assert.equal(body.includes('label-on-color'), false, 'label-on-color 在深色主题里恒为白色，配浅色底会看不见');
+  assert.equal(source.includes('label-on-color'), false, '整套样式都不该再用 label-on-color');
+  assert.ok(source.includes('.am-hint-warn{color:var(--dsw-alias-state-warn-primary)}'), 'hint 的警示变体要有自己的颜色');
+});
+
 test('模块 id 与包名一致，且注册 Plugins 页的配置卡片', async () => {
   const definition = await loadClient();
   assert.equal(definition.id, 'dsh-aftermath');
