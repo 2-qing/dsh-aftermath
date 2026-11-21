@@ -20,6 +20,14 @@
 
 ## 1. 装上（只需一次）
 
+最省事的方式，一行命令（在终端里，把 `<你的 profile>` 换成你的 profile 名，通常是 `desktop`）：
+
+```bash
+dsh plugin --profile desktop add dsh-aftermath
+```
+
+不想用命令行，就在界面里装：
+
 1. 打开 DSH → 左侧 **Plugins**（插件）
 2. 右上 **添加插件 / Add plugin** → 选 **本地目录**
 3. 选到 `D:\dsh-workspace\aftermath`

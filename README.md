@@ -2,9 +2,16 @@
 
 ![dsh-aftermath](assets/icon-96.png)
 
+[![npm version](https://img.shields.io/npm/v/dsh-aftermath.svg)](https://www.npmjs.com/package/dsh-aftermath)
+[![npm downloads](https://img.shields.io/npm/dm/dsh-aftermath.svg)](https://www.npmjs.com/package/dsh-aftermath)
+
 记录每轮对话里观测目录的文件变更：哪些被新建、删除、修改，大概是哪次工具调用改的。出问题时用它倒查。
 
 DSH 插件。零依赖，不联网，不读文件内容。
+
+```bash
+dsh plugin --profile <你的 profile> add dsh-aftermath
+```
 
 > 不想看技术细节：直接看 [GUIDE.md](GUIDE.md)，照着做就行。
 
